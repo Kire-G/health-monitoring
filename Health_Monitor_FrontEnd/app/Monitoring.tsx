@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
   Animated,
   Easing,
@@ -18,17 +17,25 @@ import {
 import axios from "axios";
 import { baseURL } from "@/config/axiosConfig";
 import SensorData from "@/constants/SensorData";
+import { useAppContext } from "@/context/AppContext";
 
 const { width, height } = Dimensions.get("window");
 
 export default function Monitoring() {
   const [healthData, setHealthData] = useState<SensorData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [measuring, setMeasuring] = useState(false);
+  const [measuring, setMeasuring] = useState(true); // starts measuring immediately
   const [elapsed, setElapsed] = useState(0);
   const [records, setRecords] = useState<SensorData[]>([]);
   const [showSummary, setShowSummary] = useState(false);
+  const { user } = useAppContext();
   const [warning, setWarning] = useState("");
+  const validStarted = useRef(false);
+  const recordsRef = useRef(records);
+
+  useEffect(() => {
+    recordsRef.current = records;
+  }, [records]);
 
   const fetchTimer = useRef<NodeJS.Timeout | null>(null);
   const measureTimer = useRef<NodeJS.Timeout | null>(null);
@@ -37,9 +44,15 @@ export default function Monitoring() {
   const wave2 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    fetchTimer.current = setInterval(() => {
+      fetchData();
+    }, 1000);
+
     return () => {
       fetchTimer.current && clearInterval(fetchTimer.current);
       measureTimer.current && clearInterval(measureTimer.current);
+      wave1.stopAnimation();
+      wave2.stopAnimation();
     };
   }, []);
 
@@ -48,71 +61,112 @@ export default function Monitoring() {
     try {
       const { data } = await axios.get<SensorData>(`${baseURL}/data`);
       setHealthData(data);
-      setRecords((prev) => [...prev, data]);
-      if (measuring && data.bpm === 0) {
-        setWarning("⚠️ Please place your finger on the sensor.");
-      } else {
-        setWarning("");
+
+      if (measuring) {
+        if (data.bpm > 0) {
+          setWarning("");
+
+          if (!validStarted.current) {
+            validStarted.current = true;
+            animatePulse();
+
+            let seconds = 0;
+            measureTimer.current = setInterval(() => {
+              seconds++;
+              setElapsed(seconds);
+
+              if (seconds >= 10) {
+                stopMeasure(recordsRef.current);
+              }
+            }, 1000);
+          }
+
+          setRecords((prev) => [...prev, data]);
+        } else {
+          if (!validStarted.current) {
+            setWarning("⚠️ Please place your finger on the sensor.");
+          }
+        }
       }
-    } catch {
+    } catch (error) {
+      console.error(error);
       setHealthData(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const startMeasure = () => {
-    setWarning("");
-    setMeasuring(true);
-    setElapsed(0);
-    setRecords([]);
-    setShowSummary(false);
-    fetchData();
-    animatePulse();
-    fetchTimer.current = setInterval(fetchData, 1000);
-    measureTimer.current = setInterval(() => setElapsed((e) => e + 1), 1000);
-  };
-
-  const stopMeasure = () => {
+  const stopMeasure = async (finalRecords: SensorData[]) => {
     setMeasuring(false);
+    fetchTimer.current && clearInterval(fetchTimer.current);
+    measureTimer.current && clearInterval(measureTimer.current);
     wave1.stopAnimation();
     wave2.stopAnimation();
     wave1.setValue(0);
     wave2.setValue(0);
-    fetchTimer.current && clearInterval(fetchTimer.current);
-    measureTimer.current && clearInterval(measureTimer.current);
-    setHealthData(null);
 
-    // Check if we have any record with bpm > 0 to show summary or warning
-    const validRecords = records.filter((r) => r.bpm > 0);
+    const validRecords = finalRecords.filter((r) => r.bpm > 0);
     if (validRecords.length > 0) {
       setShowSummary(true);
       setWarning("");
+
+      const calculateAverage = (
+        records: SensorData[],
+        key: keyof SensorData
+      ) => {
+        if (records.length === 0) return 0;
+        const sum = records.reduce((s, v) => s + (v[key] ?? 0), 0);
+        const avg = sum / records.length;
+        if (key === "bpm" || key === "spo2") {
+          return Math.round(avg);
+        }
+        return parseFloat(avg.toFixed(1));
+      };
+
+      const measurementData = {
+        userEmail: user.email,
+        heartRate: calculateAverage(validRecords, "bpm"),
+        oxygen: calculateAverage(validRecords, "spo2"),
+        temperature: calculateAverage(validRecords, "temperature"),
+        humidity: calculateAverage(validRecords, "humidity"),
+        roomTemperature: calculateAverage(validRecords, "bodyTemperature"),
+      };
+
+      try {
+        await axios.post(`${baseURL}/measurements/`, measurementData);
+        console.log("Average measurements saved successfully!");
+      } catch (error) {
+        console.error("Failed to save measurements:", error);
+        setWarning("⚠️ Could not save measurements to the server.");
+      }
     } else {
       setShowSummary(false);
-      setWarning("⚠️ No valid measurement collected. Please try again.");
+      setWarning("⚠️ No valid vitals captured. Please try again.");
     }
   };
 
   const animatePulse = () => {
-    Animated.loop(
-      Animated.timing(wave1, {
-        toValue: 1,
-        duration: 2000,
-        useNativeDriver: true,
-        easing: Easing.inOut(Easing.ease),
-      })
-    ).start();
+    const createAnimation = (wave: Animated.Value) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.spring(wave, {
+            toValue: 1,
+            friction: 4,
+            useNativeDriver: true,
+          }),
+          Animated.spring(wave, {
+            toValue: 0,
+            friction: 4,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    };
+
+    createAnimation(wave1).start();
     setTimeout(() => {
-      Animated.loop(
-        Animated.timing(wave2, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-          easing: Easing.inOut(Easing.ease),
-        })
-      ).start();
-    }, 900);
+      createAnimation(wave2).start();
+    }, 1000);
   };
 
   const avg = (key: keyof SensorData) => {
@@ -125,9 +179,9 @@ export default function Monitoring() {
   const ranges: Record<string, { min: number; max: number }> = {
     bpm: { min: 60, max: 100 },
     spo2: { min: 95, max: 100 },
-    temperature: { min: 20, max: 25 },
+    temperature: { min: 36.1, max: 37.2 },
     humidity: { min: 30, max: 60 },
-    bodyTemperature: { min: 36.1, max: 37.2 },
+    bodyTemperature: { min: 20, max: 25 },
   };
 
   const getBarColor = (key: string, val: number): string => {
@@ -183,7 +237,7 @@ export default function Monitoring() {
           <Vital
             icon={<FontAwesome5 name="heartbeat" size={48} color="#dc143c" />}
             label="Heart"
-            val={healthData?.bpm}
+            val={healthData?.bpm > 0 ? healthData.bpm : null}
             unit="bpm"
             loading={loading && measuring}
           />
@@ -192,14 +246,14 @@ export default function Monitoring() {
               <MaterialCommunityIcons name="lungs" size={48} color="#50E3C2" />
             }
             label="O₂"
-            val={healthData?.spo2}
+            val={healthData?.bpm > 0 ? healthData.spo2 : null}
             unit="%"
             loading={loading && measuring}
           />
           <Vital
             icon={<MaterialIcons name="thermostat" size={48} color="#F5A623" />}
-            label="Temp"
-            val={healthData?.temperature}
+            label="Body Temp"
+            val={healthData?.bpm > 0 ? healthData.temperature : null}
             unit="°C"
             loading={loading && measuring}
           />
@@ -212,7 +266,7 @@ export default function Monitoring() {
               />
             }
             label="Humidity"
-            val={healthData?.humidity}
+            val={healthData?.bpm > 0 ? healthData.humidity : null}
             unit="%"
             loading={loading && measuring}
           />
@@ -221,7 +275,7 @@ export default function Monitoring() {
               <MaterialIcons name="thermostat-auto" size={48} color="#9B59B6" />
             }
             label="Room Temp"
-            val={healthData?.bodyTemperature}
+            val={healthData?.bpm > 0 ? healthData.bodyTemperature : null}
             unit="°C"
             loading={loading && measuring}
           />
@@ -269,46 +323,38 @@ export default function Monitoring() {
         )}
       </ScrollView>
 
-      {measuring && (
-        <View style={styles.pulse}>
-          {[wave1, wave2].map((wv, i) => (
+      {measuring && validStarted.current && (
+        <View style={styles.pulseContainer}>
+          {[wave1, wave2].map((wave, i) => (
             <Animated.View
               key={i}
               style={[
-                styles.ripple,
+                styles.pulse,
                 {
                   transform: [
                     {
-                      scale: wv.interpolate({
+                      scale: wave.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [1, 3],
+                        outputRange: [1, 1.4],
                       }),
                     },
                   ],
-                  opacity: wv.interpolate({
+                  opacity: wave.interpolate({
                     inputRange: [0, 1],
                     outputRange: [0.6, 0],
                   }),
                 },
               ]}
-            />
+            >
+              <FontAwesome5 name="heart" size={100} color="#dc143c" />
+            </Animated.View>
           ))}
         </View>
       )}
 
-      {measuring && <Text style={styles.timer}>⏱ Measuring: {elapsed}s</Text>}
-
-      <View style={styles.buttonWrapper}>
-        <TouchableOpacity
-          style={[styles.button, measuring && { backgroundColor: "#444" }]}
-          onPressIn={startMeasure}
-          onPressOut={stopMeasure}
-        >
-          <Text style={styles.buttonText}>
-            {measuring ? "Measuring…" : "Hold to Measure"}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {measuring && validStarted.current && (
+        <Text style={styles.timer}>⏱ Measuring: {elapsed}s</Text>
+      )}
     </View>
   );
 }
@@ -374,17 +420,18 @@ const styles = StyleSheet.create({
     color: "#aaf",
     marginBottom: 12,
   },
-  pulse: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  ripple: {
+  pulseContainer: {
     position: "absolute",
-    width: width * 0.5,
-    height: width * 0.5,
-    borderRadius: width * 0.25,
-    backgroundColor: "#4A90E2",
+    top: height * 0.65,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pulse: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
   },
   timer: {
     position: "absolute",
@@ -393,21 +440,5 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: "#fff",
     fontWeight: "bold",
-  },
-  buttonWrapper: {
-    position: "absolute",
-    bottom: 40,
-    alignSelf: "center",
-  },
-  button: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: "#4A90E2",
-    borderRadius: 12,
-  },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 18,
   },
 });

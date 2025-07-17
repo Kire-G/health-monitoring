@@ -1,5 +1,6 @@
 package com.health_monitoring_systems.service;
 
+import com.health_monitoring_systems.dto.MeasurementRequest;
 import com.health_monitoring_systems.model.User;
 import com.health_monitoring_systems.model.UserMeasurements;
 import com.health_monitoring_systems.repository.UserMeasurementsRepository;
@@ -7,8 +8,8 @@ import com.health_monitoring_systems.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -31,16 +32,19 @@ public class UserMeasurementsService {
         return measurementsRepository.findByUserId(userId);
     }
 
-    public void saveMeasurement(UserMeasurements measurement) {
-        // опционално: проверка дали юзъра съществува
-        Long userId = measurement.getUser().getId();
-        Optional<User> user = userRepository.findById(userId);
+    public void saveMeasurement(MeasurementRequest measurementRequest) {
+        User user = userRepository.findByEmail(measurementRequest.getUserEmail())
+                .orElseThrow(() -> new RuntimeException("User with email " + measurementRequest.getUserEmail() + " not found"));
 
-        if (user.isEmpty()) {
-            throw new RuntimeException("User with ID " + userId + " not found");
-        }
+        UserMeasurements measurement = new UserMeasurements();
+        measurement.setUser(user);
+        measurement.setTemperature(measurementRequest.getTemperature());
+        measurement.setHeartRate(measurementRequest.getHeartRate());
+        measurement.setOxygen(measurementRequest.getOxygen());
+        measurement.setHumidity(measurementRequest.getHumidity());
+        measurement.setRoomTemperature(measurementRequest.getRoomTemperature());
+        measurement.setDateOfMeasurement(LocalDateTime.now());
 
-        measurement.setUser(user.get());
         measurementsRepository.save(measurement);
     }
 

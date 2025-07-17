@@ -1,8 +1,8 @@
 package com.health_monitoring_systems.controller;
 
+import com.health_monitoring_systems.dto.MeasurementRequest;
 import com.health_monitoring_systems.model.UserMeasurements;
 import com.health_monitoring_systems.service.UserMeasurementsService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,8 +34,8 @@ public class UserMeasurementsController {
     }
 
     @PostMapping("/")
-    public void saveMeasurement(@RequestBody UserMeasurements measurement) {
-        measurementsService.saveMeasurement(measurement);
+    public void saveMeasurement(@RequestBody MeasurementRequest measurementRequest) {
+        measurementsService.saveMeasurement(measurementRequest);
     }
 
     @DeleteMapping("/{id}")
