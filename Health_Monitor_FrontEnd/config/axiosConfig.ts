@@ -1,5 +1,6 @@
 import axios from "axios";
-export const baseURL = `http://192.168.1.236:8080`;
+// export const baseURL = `http://192.168.1.236:8080`; SOFIQ
+export const baseURL = `http://192.168.0.108:8080`; // seloto
 export const USER_MEASUREMENTS = `${baseURL}/measurements`;
 export const USER = `${baseURL}/user`;
 
