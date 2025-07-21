@@ -24,6 +24,7 @@ import { USER_MEASUREMENTS } from "@/config/axiosConfig";
 import HealthData from "@/constants/HealthData";
 import Svg, { Circle } from "react-native-svg";
 
+
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 type VitalKey = "heartRate" | "temperature" | "roomTemperature" | "humidity" | "oxygen";
@@ -79,18 +80,33 @@ export default function Home() {
   const navigation = useNavigation<NavigationProp<any>>();
   const { user } = useAppContext();
   const [lastMeasurement, setLastMeasurement] = useState<HealthData | null>(null);
+  const [measurementsHistory, setMeasurementsHistory] = useState<HealthData[]>([]);
   const [selectedVital, setSelectedVital] = useState<VitalKey>("heartRate");
+  const [displayMode, setDisplayMode] = useState<'last' | 'monthly'>('last');
+  const [averageData, setAverageData] = useState<{data: HealthData | null, type: 'monthly' | 'overall'}>({ data: null, type: 'monthly' });
   const animatedProgress = React.useRef(new Animated.Value(0)).current;
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const animatedHeight = React.useRef(new Animated.Value(0)).current;
+  const blinkAnimation = React.useRef(new Animated.Value(1)).current;
 
   const getMeasurementsHistoryByUserEmail = async () => {
     try {
       const response = await axios.get(`${USER_MEASUREMENTS}/all-by-user`, {
-        params: { email: user.email },
+        params: { email: user?.email },
       });
-      const allMeasurements = response.data;
-      if (allMeasurements && allMeasurements.length > 0) {
-        // Take the last 5 measurements
-        setLastMeasurement(allMeasurements[allMeasurements.length - 1]);
+      if (response.data && response.data.length > 0) {
+
+        const sortedData = response.data.sort(
+          (a: HealthData, b: HealthData) => {
+            const dateA = new Date(a.dateOfMeasurement.replace(' ', 'T')).getTime();
+            const dateB = new Date(b.dateOfMeasurement.replace(' ', 'T')).getTime();
+            return dateB - dateA;
+          }
+        );
+        setMeasurementsHistory(sortedData);
+        setLastMeasurement(sortedData[0]);
+
+
       }
     } catch (error) {
       console.error("Error fetching measurements:", error);
@@ -98,21 +114,63 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (lastMeasurement) {
-      animatedProgress.setValue(0);
-      Animated.timing(animatedProgress, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: false,
-      }).start();
-    }
-  }, [lastMeasurement, selectedVital]);
-
-  useEffect(() => {
     if (user?.email) {
       getMeasurementsHistoryByUserEmail();
     }
   }, [user]);
+
+  const calculateAverages = () => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    let measurementsToAverage = measurementsHistory.filter(
+      (m) => new Date(m.dateOfMeasurement.replace(' ', 'T')).getTime() >= thirtyDaysAgo.getTime()
+    );
+
+    let averageType: 'monthly' | 'overall' = 'monthly';
+
+    if (measurementsToAverage.length === 0 && measurementsHistory.length > 0) {
+      measurementsToAverage = measurementsHistory;
+      averageType = 'overall';
+    }
+
+    if (measurementsToAverage.length > 0) {
+      const sums: any = { heartRate: 0, oxygen: 0, temperature: 0, roomTemperature: 0, humidity: 0 };
+      const counts: any = { heartRate: 0, oxygen: 0, temperature: 0, roomTemperature: 0, humidity: 0 };
+
+      for (const measurement of measurementsToAverage) {
+        for (const key of Object.keys(sums)) {
+          if (measurement[key as keyof HealthData] != null) {
+            sums[key] += measurement[key as keyof HealthData] as number;
+            counts[key]++;
+          }
+        }
+      }
+
+      const averages: Partial<HealthData> = { dateOfMeasurement: new Date().toISOString(), id: 'average' };
+      for (const key of Object.keys(sums)) {
+        if (counts[key] > 0) {
+          (averages as any)[key] = sums[key] / counts[key];
+        }
+      }
+      setAverageData({ data: averages as HealthData, type: averageType });
+    } else {
+      setAverageData({ data: null, type: 'monthly' });
+    }
+  };
+
+  useEffect(() => {
+    if (measurementsHistory.length > 0) {
+      calculateAverages();
+    }
+  }, [measurementsHistory]);
+
+  const dataToDisplay = displayMode === 'last' ? lastMeasurement : averageData.data;
+
+  const isCritical = dataToDisplay && dataToDisplay[selectedVital] != null &&
+    (dataToDisplay[selectedVital] < vitalDetails[selectedVital].range[0] ||
+     dataToDisplay[selectedVital] > vitalDetails[selectedVital].range[1]);
+  const averageLabel = averageData.type === 'overall' ? 'Overall Average' : 'Monthly Average';
 
   const handleNextVital = () => {
     const vitalKeys = Object.keys(vitalDetails) as VitalKey[];
@@ -127,6 +185,45 @@ export default function Home() {
     const prevIndex = (currentIndex - 1 + vitalKeys.length) % vitalKeys.length;
     setSelectedVital(vitalKeys[prevIndex]);
   };
+
+  const togglePicker = () => {
+    const toValue = isPickerOpen ? 0 : 1;
+    setIsPickerOpen(!isPickerOpen);
+    Animated.timing(animatedHeight, {
+      toValue,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  useEffect(() => {
+    if (dataToDisplay) {
+      animatedProgress.setValue(0);
+      const progress = dataToDisplay[selectedVital] != null
+        ? Math.max(0, Math.min(1, (dataToDisplay[selectedVital] - vitalDetails[selectedVital].range[0]) / (vitalDetails[selectedVital].range[1] - vitalDetails[selectedVital].range[0])))
+        : 0;
+
+      Animated.timing(animatedProgress, {
+        toValue: isCritical ? 1 : progress,
+        duration: 1000,
+        useNativeDriver: true,
+      }).start();
+
+      if (isCritical) {
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(blinkAnimation, { toValue: 0.3, duration: 700, useNativeDriver: true }),
+            Animated.timing(blinkAnimation, { toValue: 1, duration: 700, useNativeDriver: true }),
+          ])
+        ).start();
+      } else {
+        blinkAnimation.stopAnimation();
+        blinkAnimation.setValue(1);
+      }
+    }
+
+    return () => blinkAnimation.stopAnimation();
+  }, [selectedVital, dataToDisplay, isCritical]);
 
   return (
     <LinearGradient
@@ -145,21 +242,6 @@ export default function Home() {
             source={{ uri: "https://randomuser.me/api/portraits/men/1.jpg" }}
             style={styles.avatar}
           />
-        </View>
-
-        <View style={styles.servicesRow}>
-          <View style={styles.serviceIcon}>
-            <Ionicons name="person" size={24} color="#4A90E2" />
-          </View>
-          <View style={styles.serviceIcon}>
-            <FontAwesome5 name="file-alt" size={20} color="#F5A623" />
-          </View>
-          <View style={styles.serviceIcon}>
-            <MaterialIcons name="event" size={24} color="#50E3C2" />
-          </View>
-          <View style={styles.serviceIcon}>
-            <MaterialCommunityIcons name="virus" size={24} color="#D0021B" />
-          </View>
         </View>
 
         <LinearGradient
@@ -182,81 +264,110 @@ export default function Home() {
 
         {lastMeasurement && (
           <View style={styles.interactiveContainer}>
-            <Text style={styles.sectionHeader}>Last Measurement</Text>
-            <View style={styles.gaugeContainer}>
-              <Svg
-                height={Dimensions.get("window").width * 0.55}
-                width={Dimensions.get("window").width * 0.55}
-                viewBox="0 0 220 220"
-              >
-                <Circle
-                  cx="110"
-                  cy="110"
-                  r="85"
-                  stroke="#393851"
-                  strokeWidth="25"
-                  fill="transparent"
-                />
-                <AnimatedCircle
-                  cx="110"
-                  cy="110"
-                  r="85"
-                  stroke={
-                    lastMeasurement[selectedVital] >=
-                      vitalDetails[selectedVital].goodRange[0] &&
-                    lastMeasurement[selectedVital] <=
-                      vitalDetails[selectedVital].goodRange[1]
-                      ? "#00FF7F"
-                      : "#FF453A"
-                  }
-                  strokeWidth="25"
-                  fill="transparent"
-                  strokeDasharray={2 * Math.PI * 85}
-                  strokeDashoffset={animatedProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [
-                      2 * Math.PI * 85,
-                      2 *
-                        Math.PI *
-                        85 *
-                        (1 -
-                          Math.max(
-                            0,
-                            Math.min(
-                              1,
-                              (lastMeasurement[selectedVital] -
-                                vitalDetails[selectedVital].range[0]) /
-                                (vitalDetails[selectedVital].range[1] -
-                                  vitalDetails[selectedVital].range[0])
-                            )
-                          )),
-                    ],
-                  })}
-                  strokeLinecap="round"
-                  transform="rotate(-90 110 110)"
-                />
-              </Svg>
-              <View style={styles.gaugeTextContainer}>
-                <Text style={styles.gaugeValue}>
-                  {lastMeasurement[selectedVital]}
-                  <Text style={styles.gaugeUnit}>
-                    {vitalDetails[selectedVital].unit}
+            <View style={styles.sectionHeaderContainer}>
+      
+              <View style={styles.pickerContainer}>
+                <TouchableOpacity onPress={togglePicker} style={styles.pickerHeader}>
+                  <Text style={styles.pickerHeaderText}>
+                    {displayMode === 'last' ? 'Last Measurement' : 'Monthly Average'}
                   </Text>
-                </Text>
+                  <Ionicons name={isPickerOpen ? "chevron-up" : "chevron-down"} size={20} color="white" />
+                </TouchableOpacity>
+                <Animated.View style={[styles.pickerDropdown, { height: animatedHeight.interpolate({ inputRange: [0, 1], outputRange: [0, 100] }) }]}>
+                  <TouchableOpacity style={styles.pickerOption} onPress={() => { setDisplayMode('last'); togglePicker(); }}>
+                    <Text style={styles.pickerOptionText}>Last Measurement</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.pickerOption} onPress={() => { setDisplayMode('monthly'); togglePicker(); }}>
+                    <Text style={styles.pickerOptionText}>Monthly Average</Text>
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
             </View>
 
-            <View style={styles.vitalSelector}>
-              <TouchableOpacity onPress={handlePreviousVital}>
-                <Ionicons name="chevron-back-outline" size={30} color="#fff" />
-              </TouchableOpacity>
-              <Text style={styles.vitalName}>
-                {vitalDetails[selectedVital].label}
+            {dataToDisplay && (
+              <Text style={styles.measurementDate}>
+                {displayMode === 'last'
+                  ? `Last measurement: ${new Date(
+                      lastMeasurement?.dateOfMeasurement?.replace(' ', 'T') || ''
+                    ).toLocaleString()}`
+                  : `Average of all available data`}
               </Text>
-              <TouchableOpacity onPress={handleNextVital}>
-                <Ionicons name="chevron-forward-outline" size={30} color="#fff" />
-              </TouchableOpacity>
-            </View>
+            )}
+
+            {dataToDisplay ? (
+              <>
+                <View style={styles.gaugeContainer}>
+                  <Svg height="220" width="220" viewBox="0 0 220 220">
+                    <Circle
+                      cx="110"
+                      cy="110"
+                      r="85"
+                      stroke="#3A3A5A"
+                      strokeWidth="25"
+                      fill="transparent"
+                    />
+                      <AnimatedCircle
+                        cx="110"
+                        cy="110"
+                        r="85"
+                        stroke={isCritical ? '#ff0000' : (dataToDisplay[selectedVital] >= vitalDetails[selectedVital].goodRange[0] && dataToDisplay[selectedVital] <= vitalDetails[selectedVital].goodRange[1] ? "#00FF7F" : "#FF453A")}
+                        opacity={isCritical ? blinkAnimation : 1}
+                        strokeWidth="25"
+                        fill="transparent"
+                        strokeDasharray={2 * Math.PI * 85}
+                        strokeDashoffset={animatedProgress.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [
+                            2 * Math.PI * 85,
+                            2 * Math.PI * 85 * (1 - (isCritical ? 1 : Math.max(0, Math.min(1, (dataToDisplay[selectedVital] - vitalDetails[selectedVital].range[0]) / (vitalDetails[selectedVital].range[1] - vitalDetails[selectedVital].range[0])))))
+                          ],
+                        })}
+                        strokeLinecap="round"
+                        transform="rotate(-90 110 110)"
+                      />
+                  </Svg>
+                  <View style={styles.gaugeTextContainer}>
+                    {dataToDisplay && dataToDisplay[selectedVital] != null ? (
+                      <View style={{ alignItems: 'center' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
+                          <Text style={styles.vitalValue}>
+                            {dataToDisplay[selectedVital].toFixed(1)}
+                          </Text>
+                          <Text style={styles.vitalUnit}>
+                            {vitalDetails[selectedVital].unit}
+                          </Text>
+                        </View>
+                        {isCritical && <Text style={styles.criticalText}>Critical</Text>}
+                      </View>
+                    ) : (
+                      <Text style={[styles.vitalValue, { fontSize: 18, textAlign: 'center' }]}>
+                        {displayMode === 'monthly' ? `No data for ${averageLabel} average` : '--'}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.vitalSelector}>
+                  <TouchableOpacity onPress={handlePreviousVital}>
+                    <Ionicons name="chevron-back-outline" size={30} color="#fff" />
+                  </TouchableOpacity>
+                  <Text style={styles.vitalName}>
+                    {vitalDetails[selectedVital].label}
+                  </Text>
+                  <TouchableOpacity onPress={handleNextVital}>
+                    <Ionicons
+                      name="chevron-forward-outline"
+                      size={30}
+                      color="#fff"
+                    />
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <View style={styles.gaugeContainer}>
+                <Text style={styles.vitalValue}>No data available</Text>
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
@@ -280,6 +391,8 @@ const chartConfig = {
     stroke: "#ffa726",
   },
 };
+
+
 
 const styles = StyleSheet.create({
   container: {
@@ -307,19 +420,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
   },
-  servicesRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  serviceIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+
   promoCard: {
     flexDirection: "row",
     borderRadius: 12,
@@ -348,6 +449,54 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
   },
+  sectionHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 5,
+  },
+  pickerContainer: {
+    width: '60%',
+    position: 'relative',
+    zIndex: 1,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(138, 132, 255, 0.5)',
+    borderRadius: 8,
+    backgroundColor: 'rgba(57, 56, 81, 0.8)',
+  },
+  pickerHeaderText: {
+    color: 'white',
+    fontSize: 16,
+  },
+  pickerDropdown: {
+    position: 'absolute',
+    top: '100%',
+    width: '100%',
+    backgroundColor: 'rgba(57, 56, 81, 0.9)',
+    borderRadius: 8,
+    marginTop: 4,
+    overflow: 'hidden',
+  },
+  pickerOption: {
+    padding: 12,
+  },
+  pickerOptionText: {
+    color: 'white',
+    fontSize: 16,
+  },
+  measurementDate: {
+    color: '#BDBDBD',
+    fontSize: 14,
+    marginBottom: 15,
+    width: '100%',
+  },
   interactiveContainer: {
     alignItems: 'flex-start',
     marginTop: 20,
@@ -362,17 +511,32 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   gaugeTextContainer: {
-    position: 'absolute',
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: 'row',
   },
-  gaugeValue: {
-    color: '#fff',
-    fontSize: 52,
-    fontWeight: '700',
+  vitalValue: {
+    fontSize: 40,
+    fontWeight: "bold",
+    color: "#fff",
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: -1, height: 1 },
     textShadowRadius: 10,
+  },
+  criticalText: {
+    color: '#ff0000',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 5,
+  },
+  vitalUnit: {
+    fontSize: 16,
+    color: "#ccc",
+    marginLeft: 5,
+    alignSelf: 'flex-end',
+    marginBottom: 8,
+    fontWeight: '600',
   },
   gaugeUnit: {
     fontSize: 26,

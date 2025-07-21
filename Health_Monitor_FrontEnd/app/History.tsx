@@ -12,33 +12,44 @@ import { useEffect, useState } from "react";
 import { useAppContext } from "@/context/AppContext";
 
 function History() {
-  const [healthData, setHealthData] = useState<HealthData[]>();
+  const [healthData, setHealthData] = useState<HealthData[]>([]);
   const { user } = useAppContext();
 
   const getMeasurementsHistoryByUserEmail = async () => {
-    console.log(user.email);
     try {
-      await axios
-        .get(`${USER_MEASUREMENTS}/all-by-user`, {
-          params: { email: user.email },
-        })
-        .then((res) => setHealthData(res.data));
+      const response = await axios.get(`${USER_MEASUREMENTS}/all-by-user`, {
+        params: { email: user?.email },
+      });
+      if (response.data) {
+        const sortedData = response.data.sort(
+          (a: HealthData, b: HealthData) => {
+            const dateA = new Date(a.dateOfMeasurement.replace(' ', 'T')).getTime();
+            const dateB = new Date(b.dateOfMeasurement.replace(' ', 'T')).getTime();
+            return dateB - dateA;
+          }
+        );
+        setHealthData(sortedData);
+      }
     } catch (error) {
       console.error("Error fetching measurements:", error);
-      throw error;
     }
   };
+
+
 
   useEffect(() => {
     getMeasurementsHistoryByUserEmail();
   }, [user]);
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
+
+      <Text style={styles.sectionTitle}>History</Text>
+
       {healthData?.map((data, index) => (
         <View key={index} style={styles.sensorCard}>
           <Text style={styles.sensorDate}>
-            {data.dateOfMeasurement.toLocaleString()}
+            {new Date(data.dateOfMeasurement.replace(' ', 'T')).toLocaleString()}
           </Text>
 
           <View style={styles.sensorDataRow}>
@@ -85,7 +96,7 @@ function History() {
           </View>
         </View>
       ))}
-    </View>
+    </ScrollView>
   );
 }
 
