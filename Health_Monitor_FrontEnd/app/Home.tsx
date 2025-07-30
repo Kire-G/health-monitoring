@@ -23,6 +23,7 @@ import axios from "axios";
 import { USER_MEASUREMENTS } from "@/config/axiosConfig";
 import HealthData from "@/constants/HealthData";
 import Svg, { Circle } from "react-native-svg";
+import { getRuleBasedAdvice } from "./services/AdviserService";
 
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -84,6 +85,7 @@ export default function Home() {
   const [selectedVital, setSelectedVital] = useState<VitalKey>("heartRate");
   const [displayMode, setDisplayMode] = useState<'last' | 'monthly'>('last');
   const [averageData, setAverageData] = useState<{data: HealthData | null, type: 'monthly' | 'overall'}>({ data: null, type: 'monthly' });
+  const [advice, setAdvice] = useState<string>('Select a vital to see health advice.');
   const animatedProgress = React.useRef(new Animated.Value(0)).current;
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const animatedHeight = React.useRef(new Animated.Value(0)).current;
@@ -118,6 +120,21 @@ export default function Home() {
       getMeasurementsHistoryByUserEmail();
     }
   }, [user]);
+
+  const dataToDisplay = displayMode === 'last' ? lastMeasurement : averageData.data;
+
+  useEffect(() => {
+    if (dataToDisplay) {
+      const newAdvice = getRuleBasedAdvice(
+        selectedVital,
+        dataToDisplay[selectedVital],
+        vitalDetails[selectedVital].goodRange
+      );
+      setAdvice(newAdvice);
+    } else {
+      setAdvice('Select a vital to see health advice.');
+    }
+  }, [selectedVital, dataToDisplay]);
 
   const calculateAverages = () => {
     const thirtyDaysAgo = new Date();
@@ -165,7 +182,7 @@ export default function Home() {
     }
   }, [measurementsHistory]);
 
-  const dataToDisplay = displayMode === 'last' ? lastMeasurement : averageData.data;
+
 
   const isCritical = dataToDisplay && dataToDisplay[selectedVital] != null &&
     (dataToDisplay[selectedVital] < vitalDetails[selectedVital].range[0] ||
@@ -236,12 +253,11 @@ export default function Home() {
         <View style={styles.header}>
           <View>
             <Text style={styles.hello}>Hello</Text>
-            <Text style={styles.name}>{user.name}</Text>
+            <Text style={styles.name}>{user?.name}</Text>
           </View>
-          <Image
-            source={{ uri: "https://randomuser.me/api/portraits/men/1.jpg" }}
-            style={styles.avatar}
-          />
+          <TouchableOpacity onPress={() => navigation.navigate("profile")}>
+            <Ionicons name="person-circle-outline" size={44} color="#fff" />
+          </TouchableOpacity>
         </View>
 
         <LinearGradient
@@ -347,21 +363,20 @@ export default function Home() {
                   </View>
                 </View>
 
-                <View style={styles.vitalSelector}>
-                  <TouchableOpacity onPress={handlePreviousVital}>
-                    <Ionicons name="chevron-back-outline" size={30} color="#fff" />
-                  </TouchableOpacity>
-                  <Text style={styles.vitalName}>
-                    {vitalDetails[selectedVital].label}
-                  </Text>
-                  <TouchableOpacity onPress={handleNextVital}>
-                    <Ionicons
-                      name="chevron-forward-outline"
-                      size={30}
-                      color="#fff"
-                    />
-                  </TouchableOpacity>
-                </View>
+              <View style={styles.vitalSelectorContainer}>
+                <TouchableOpacity onPress={handlePreviousVital} style={styles.arrowButton}>
+                  <Ionicons name="chevron-back" size={24} color="white" />
+                </TouchableOpacity>
+                <Text style={styles.vitalName}>{vitalDetails[selectedVital].label}</Text>
+                <TouchableOpacity onPress={handleNextVital} style={styles.arrowButton}>
+                  <Ionicons name="chevron-forward" size={24} color="white" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.adviserContainer}>
+                <Text style={styles.adviserTitle}>Health Adviser</Text>
+                <Text style={styles.adviserText}>{advice}</Text>
+              </View>
               </>
             ) : (
               <View style={styles.gaugeContainer}>
@@ -524,6 +539,47 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: -1, height: 1 },
     textShadowRadius: 10,
   },
+  vitalName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginHorizontal: 20,
+  },
+
+
+  vitalSelectorContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginTop: 20,
+    alignSelf: 'stretch',
+  },
+  arrowButton: {
+    padding: 10,
+  },
+  adviserContainer: {
+    marginTop: 20,
+    marginHorizontal: 10,
+    padding: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  adviserTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  adviserText: {
+    color: '#eee',
+    fontSize: 16,
+    lineHeight: 24,
+  },
   criticalText: {
     color: '#ff0000',
     fontSize: 16,
@@ -542,19 +598,6 @@ const styles = StyleSheet.create({
     fontSize: 26,
     color: '#a0a0b0',
     fontWeight: '500',
-  },
-  vitalSelector: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    width: "100%",
-    paddingHorizontal: 20,
-    marginTop: 10,
-  },
-  vitalName: {
-    color: "#fff",
-    fontSize: 22,
-    fontWeight: "bold",
   },
   sectionHeader: {
     fontSize: 22,
@@ -575,22 +618,6 @@ const styles = StyleSheet.create({
     width: "32%",
     marginBottom: 10,
     alignItems: "center",
-  },
-  metricLabel: {
-    color: "#fff",
-    fontSize: 14,
-    marginTop: 8,
-  },
-  metricValue: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginTop: 4,
-  },
-  progressChartsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 10,
   },
   progressCard: {
     backgroundColor: "#393851",

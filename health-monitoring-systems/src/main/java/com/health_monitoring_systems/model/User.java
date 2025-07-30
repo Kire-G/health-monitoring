@@ -1,5 +1,6 @@
 package com.health_monitoring_systems.model;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -23,7 +24,9 @@ public class User {
     private String password;
     private String email;
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
-    private List<UserMeasurements> userMeasurementsHistory;
+    @JsonManagedReference("user-measurements")
+    private List<UserMeasurements> userMeasurements;
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    @JsonManagedReference("user-details")
     private UserDetails userDetails;
 }

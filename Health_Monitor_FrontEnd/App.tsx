@@ -5,12 +5,13 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { View, StyleSheet, Text } from "react-native";
 import Register from "./app/Register";
-import Profile from "./app/profile";
+import Personalized from "./app/Personalized";
 import Home from "./app/Home";
 import { AppProvider } from "./context/AppContext";
 import Login from "./app/Login";
 import History from "./app/History";
 import Monitoring from "./app/Monitoring";
+import Profile from "./app/profile";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -73,8 +74,8 @@ function TabNavigator() {
         }}
       />
       <Tab.Screen
-        name="Profile"
-        component={Profile}
+        name="Personalized"
+        component={Personalized}
         options={{
           tabBarStyle: styles.tabBar,
           tabBarIcon: ({ focused }) => (
@@ -82,13 +83,13 @@ function TabNavigator() {
               style={focused ? styles.tabBarIconFocused : styles.tabBarIcon}
             >
               <Ionicons
-                name={focused ? "person" : "person-outline"}
+                name={focused ? "sparkles" : "sparkles-outline"}
                 size={26}
                 color={"#485696"}
               />
               {!focused && (
                 <Text style={focused ? styles.textFocused : styles.text}>
-                  Profile
+                  Personalized
                 </Text>
               )}
             </View>
@@ -113,6 +114,7 @@ export default function App() {
           <Stack.Screen name="Monitoring" component={Monitoring} />
           <Stack.Screen name="Register" component={Register} />
           <Stack.Screen name="MainTabs" component={TabNavigator} />
+          <Stack.Screen name="profile" component={Profile} />
         </Stack.Navigator>
       </NavigationContainer>
     </AppProvider>

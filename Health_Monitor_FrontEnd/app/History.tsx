@@ -6,6 +6,26 @@ import {
   FontAwesome5,
 } from "@expo/vector-icons";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+
+// A new component to render each health metric with a progress bar
+const HealthMetric = ({ icon, label, value, unit, color, max }) => {
+  const percentage = Math.min(100, (parseFloat(value) / max) * 100);
+  return (
+    <View style={styles.metricContainer}>
+      <View style={styles.metricInfo}>
+        {icon}
+        <Text style={styles.sensorLabel}>{label}</Text>
+      </View>
+      <View style={styles.metricValueBar}>
+        <Text style={[styles.sensorValue, { color }]}>{`${value} ${unit}`}</Text>
+        <View style={styles.progressBarBackground}>
+          <View style={[styles.progressBar, { width: `${percentage}%`, backgroundColor: color }]} />
+        </View>
+      </View>
+    </View>
+  );
+};
+import { LinearGradient } from "expo-linear-gradient";
 import { USER_MEASUREMENTS } from "@/config/axiosConfig";
 import axios from "axios";
 import { useEffect, useState } from "react";
@@ -23,8 +43,12 @@ function History() {
       if (response.data) {
         const sortedData = response.data.sort(
           (a: HealthData, b: HealthData) => {
-            const dateA = new Date(a.dateOfMeasurement.replace(' ', 'T')).getTime();
-            const dateB = new Date(b.dateOfMeasurement.replace(' ', 'T')).getTime();
+            const dateA = new Date(
+              a.dateOfMeasurement.replace(" ", "T")
+            ).getTime();
+            const dateB = new Date(
+              b.dateOfMeasurement.replace(" ", "T")
+            ).getTime();
             return dateB - dateA;
           }
         );
@@ -35,68 +59,84 @@ function History() {
     }
   };
 
-
-
   useEffect(() => {
     getMeasurementsHistoryByUserEmail();
   }, [user]);
 
   return (
-    <ScrollView style={styles.container}>
+    <LinearGradient
+      colors={["#050505", "#1c1c1c", "#2a2a3d"]}
+      style={styles.container}
+    >
+      <ScrollView>
+        <Text style={styles.sectionTitle}>Measurement History</Text>
 
-      <Text style={styles.sectionTitle}>History</Text>
-
-      {healthData?.map((data, index) => (
-        <View key={index} style={styles.sensorCard}>
-          <Text style={styles.sensorDate}>
-            {new Date(data.dateOfMeasurement.replace(' ', 'T')).toLocaleString()}
-          </Text>
-
-          <View style={styles.sensorDataRow}>
-            <View style={styles.sensorDataItem}>
-              <Ionicons name="thermometer" size={20} color="#ff6347" />
-              <Text style={styles.sensorLabel}>Body Temp</Text>
-              <Text style={styles.sensorValue}>{data.temperature}</Text>
+        {healthData?.map((data, index) => (
+          <View key={index} style={styles.sensorCard}>
+            <View style={styles.dateContainer}>
+              <Ionicons name="calendar-outline" size={16} color="#aaa" />
+              <Text style={styles.dateText}>
+                {new Date(data.dateOfMeasurement.replace(' ', 'T')).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </Text>
+              <Text style={styles.timeText}>
+                {new Date(data.dateOfMeasurement.replace(' ', 'T')).toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true,
+                })}
+              </Text>
             </View>
-            <View style={styles.sensorDataItem}>
-              <MaterialIcons name="thermostat" size={20} color="#1e90ff" />
-              <Text style={styles.sensorLabel}>Room Temp</Text>
-              <Text style={styles.sensorValue}>{data.roomTemperature}</Text>
-            </View>
-          </View>
 
-          <View style={styles.sensorDataRow}>
-            <View style={styles.sensorDataItem}>
-              <MaterialCommunityIcons
-                name="water-percent"
-                size={20}
+            <View style={styles.metricsList}>
+              <HealthMetric
+                icon={<Ionicons name="thermometer" size={24} color="#ff6347" />}
+                label="Body Temp"
+                value={data.temperature}
+                unit="°C"
+                color="#ff6347"
+                max={40}
+              />
+              <HealthMetric
+                icon={<MaterialIcons name="thermostat" size={24} color="#1e90ff" />}
+                label="Room Temp"
+                value={data.roomTemperature}
+                unit="°C"
+                color="#1e90ff"
+                max={40}
+              />
+              <HealthMetric
+                icon={<MaterialCommunityIcons name="water-percent" size={24} color="#00bfff" />}
+                label="Humidity"
+                value={data.humidity}
+                unit="%"
                 color="#00bfff"
+                max={100}
               />
-              <Text style={styles.sensorLabel}>Humidity</Text>
-              <Text style={styles.sensorValue}>{data.humidity}</Text>
-            </View>
-            <View style={styles.sensorDataItem}>
-              <FontAwesome5 name="heartbeat" size={20} color="#dc143c" />
-              <Text style={styles.sensorLabel}>Pulse</Text>
-              <Text style={styles.sensorValue}>{data.heartRate}</Text>
-            </View>
-          </View>
-
-          <View style={styles.sensorDataRow}>
-            <View style={styles.sensorDataItem}>
-              <MaterialCommunityIcons
-                name="water-opacity"
-                size={20}
+              <HealthMetric
+                icon={<FontAwesome5 name="heartbeat" size={24} color="#dc143c" />}
+                label="Pulse"
+                value={data.heartRate}
+                unit="BPM"
+                color="#dc143c"
+                max={150}
+              />
+              <HealthMetric
+                icon={<MaterialCommunityIcons name="water-opacity" size={24} color="#4caf50" />}
+                label="SpO₂"
+                value={data.oxygen}
+                unit="%"
                 color="#4caf50"
+                max={100}
               />
-              <Text style={styles.sensorLabel}>SpO₂</Text>
-              <Text style={styles.sensorValue}>{data.oxygen}</Text>
             </View>
-            <View style={styles.sensorDataItem} />
           </View>
-        </View>
-      ))}
-    </ScrollView>
+        ))}
+      </ScrollView>
+    </LinearGradient>
   );
 }
 
@@ -104,112 +144,85 @@ export default History;
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    paddingTop: 50,
-    backgroundColor: "#F7F8FA",
     flex: 1,
-  },
-  header: {
-    marginTop: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  hello: {
-    fontSize: 16,
-    color: "#555",
-  },
-  name: {
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  servicesRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  serviceIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  promoCard: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  promoTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  promoDesc: {
-    fontSize: 12,
-    color: "#555",
-  },
-  promoImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    marginLeft: 10,
+    paddingTop: 60,
+    paddingHorizontal: 20,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: "600",
-    marginBottom: 10,
+    color: "#FFFFFF",
+    backgroundColor: "rgba(57, 56, 81, 0.8)",
+    marginBottom: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    textAlign: "center",
+    overflow: "hidden",
   },
   sensorCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: "rgba(57, 56, 81, 0.8)",
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "rgba(138, 132, 255, 0.5)",
   },
-  sensorDate: {
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  dateText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginLeft: 10,
+  },
+  timeText: {
     fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 10,
-    color: "#333",
+    color: '#ccc',
+    marginLeft: 'auto',
   },
-  sensorDataRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
+    metricsList: {
+    marginTop: 10,
   },
-  sensorDataItem: {
-    flex: 1,
-    alignItems: "center",
+  metricContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  metricInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '35%',
   },
   sensorLabel: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "#666",
+    fontSize: 14,
+    color: '#E0E0E0',
+    marginLeft: 10,
+  },
+  metricValueBar: {
+    flex: 1,
+    marginLeft: 10,
   },
   sensorValue: {
     fontSize: 16,
-    fontWeight: "700",
-    color: "#0077b6",
-    marginTop: 2,
+    fontWeight: 'bold',
+    alignSelf: 'flex-start',
+  },
+  progressBarBackground: {
+    height: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 4,
+    marginTop: 5,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: 8,
+    borderRadius: 4,
   },
 });

@@ -20,7 +20,7 @@ public class UserMeasurementsService {
 
     public List<UserMeasurements> getAllByUserEmail(String email) {
         User user = userRepository.findByEmail(email).orElseThrow(() -> new IllegalArgumentException("User with this email: " + email + " doesn't exists!"));
-        return user.getUserMeasurementsHistory();
+        return user.getUserMeasurements();
     }
 
     public UserMeasurements getMeasurement(Long id) {

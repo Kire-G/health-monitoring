@@ -1,5 +1,6 @@
 package com.health_monitoring_systems.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -22,5 +23,6 @@ public class UserDetails {
     private Gender gender;
     @OneToOne
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonBackReference("user-details")
     private User user;
 }

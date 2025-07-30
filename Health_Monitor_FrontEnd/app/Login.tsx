@@ -26,15 +26,15 @@ const Login = () => {
 
   const handleSubmit = async () => {
     try {
-      await axios
-        .get(`${USER}/`, {
-          params: { email: loginInfo.email, password: loginInfo.password },
-        })
-        .then((res) => setUser(res.data));
+      const response = await axios.get(`${USER}/`, {
+        params: { email: loginInfo.email, password: loginInfo.password },
+      });
 
-      if (user) {
-        console.log(user);
+      if (response.data) {
+        setUser(response.data);
         navigation.navigate("MainTabs");
+      } else {
+        Alert.alert("Login Failed", "Invalid email or password.");
       }
     } catch (error) {
       console.error("Login failed:", error);

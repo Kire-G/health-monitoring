@@ -28,6 +28,6 @@ public class UserMeasurements {
     private LocalDateTime dateOfMeasurement;
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
-    @JsonBackReference
+    @JsonBackReference("user-measurements")
     private User user;
 }
