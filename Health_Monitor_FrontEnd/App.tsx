@@ -1,5 +1,5 @@
 import React from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, DarkTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -39,7 +39,7 @@ function TabNavigator() {
               <Ionicons
                 name={focused ? "library-sharp" : "library-outline"}
                 size={26}
-                color={"#485696"}
+                color={"#FFFFFF"}
               />
               {!focused && (
                 <Text style={focused ? styles.textFocused : styles.text}>
@@ -62,7 +62,7 @@ function TabNavigator() {
               <Ionicons
                 name={focused ? "home" : "home-outline"}
                 size={30}
-                color={"#485696"}
+                color={"#FFFFFF"}
               />
               {!focused && (
                 <Text style={focused ? styles.textFocused : styles.text}>
@@ -85,7 +85,7 @@ function TabNavigator() {
               <Ionicons
                 name={focused ? "sparkles" : "sparkles-outline"}
                 size={26}
-                color={"#485696"}
+                color={"#FFFFFF"}
               />
               {!focused && (
                 <Text style={focused ? styles.textFocused : styles.text}>
@@ -100,10 +100,19 @@ function TabNavigator() {
   );
 }
 
+const CustomDarkTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: '#1E1E1E',
+    card: '#1E1E1E',
+  },
+};
+
 export default function App() {
   return (
     <AppProvider>
-      <NavigationContainer>
+      <NavigationContainer theme={CustomDarkTheme}>
         <Stack.Navigator
           id={null}
           initialRouteName="Login"
@@ -126,7 +135,7 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingTop: 15,
     borderRadius: 10,
-    backgroundColor: "white",
+    backgroundColor: "#1E1E1E",
     height: 100,
     elevation: 3,
     alignContent: "center",
@@ -155,7 +164,7 @@ const styles = StyleSheet.create({
   },
 
   textFocused: {
-    color: "#485696",
+    color: "#FFFFFF",
     width: 100,
     textAlign: "center",
     fontSize: 10,
@@ -163,7 +172,7 @@ const styles = StyleSheet.create({
   },
 
   text: {
-    color: "#485696",
+    color: "#FFFFFF",
     textAlign: "center",
     width: 100,
     fontSize: 10,

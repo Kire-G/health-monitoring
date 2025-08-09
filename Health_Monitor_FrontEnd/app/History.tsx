@@ -5,7 +5,16 @@ import {
   MaterialCommunityIcons,
   FontAwesome5,
 } from "@expo/vector-icons";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  Linking,
+  Alert,
+  Modal,
+} from "react-native";
 
 // A new component to render each health metric with a progress bar
 const HealthMetric = ({ icon, label, value, unit, color, max }) => {
@@ -17,9 +26,16 @@ const HealthMetric = ({ icon, label, value, unit, color, max }) => {
         <Text style={styles.sensorLabel}>{label}</Text>
       </View>
       <View style={styles.metricValueBar}>
-        <Text style={[styles.sensorValue, { color }]}>{`${value} ${unit}`}</Text>
+        <Text
+          style={[styles.sensorValue, { color }]}
+        >{`${value} ${unit}`}</Text>
         <View style={styles.progressBarBackground}>
-          <View style={[styles.progressBar, { width: `${percentage}%`, backgroundColor: color }]} />
+          <View
+            style={[
+              styles.progressBar,
+              { width: `${percentage}%`, backgroundColor: color },
+            ]}
+          />
         </View>
       </View>
     </View>
@@ -30,10 +46,65 @@ import { USER_MEASUREMENTS } from "@/config/axiosConfig";
 import axios from "axios";
 import { useEffect, useState } from "react";
 import { useAppContext } from "@/context/AppContext";
+import { baseURL } from "@/config/axiosConfig";
 
 function History() {
-  const [healthData, setHealthData] = useState<HealthData[]>([]);
   const { user } = useAppContext();
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">(
+    "success"
+  );
+
+  const handleSendEmail = async (report: HealthData) => {
+    if (!user?.doctorDetails?.doctorEmail) {
+      Alert.alert(
+        "No Doctor Email",
+        "Please add your doctor's email in the profile section first."
+      );
+      return;
+    }
+
+    const latestReport = report;
+    const subject = `Health Report for ${user.name}`;
+    const body = `
+Hello Dr. ${user.doctorDetails.doctorName || ""},
+
+Here is my latest health report from ${new Date(
+      latestReport.dateOfMeasurement.replace(" ", "T")
+    ).toLocaleString()}:
+
+- Body Temperature: ${latestReport.temperature}°C
+- Room Temperature: ${latestReport.roomTemperature}°C
+- Humidity: ${latestReport.humidity}%
+- Heart Rate: ${latestReport.heartRate} BPM
+- SpO2: ${latestReport.oxygen}%
+
+Thank you,
+${user.name}
+    `;
+
+    try {
+      await axios.post(`${baseURL}/api/email/send`, {
+        from: user.email,
+        fromName: user.name,
+        to: user.doctorDetails.doctorEmail,
+        subject,
+        body,
+      });
+      setMessageType("success");
+      setMessage(
+        "Your health report has been successfully sent to your doctor."
+      );
+    } catch (error) {
+      console.error("Failed to send email:", error);
+      setMessageType("error");
+      setMessage(
+        "Failed to send the report. Please check your connection and try again."
+      );
+    }
+  };
+
+  const [healthData, setHealthData] = useState<HealthData[]>([]);
 
   const getMeasurementsHistoryByUserEmail = async () => {
     try {
@@ -76,16 +147,20 @@ function History() {
             <View style={styles.dateContainer}>
               <Ionicons name="calendar-outline" size={16} color="#aaa" />
               <Text style={styles.dateText}>
-                {new Date(data.dateOfMeasurement.replace(' ', 'T')).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
+                {new Date(
+                  data.dateOfMeasurement.replace(" ", "T")
+                ).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
                 })}
               </Text>
               <Text style={styles.timeText}>
-                {new Date(data.dateOfMeasurement.replace(' ', 'T')).toLocaleTimeString('en-US', {
-                  hour: '2-digit',
-                  minute: '2-digit',
+                {new Date(
+                  data.dateOfMeasurement.replace(" ", "T")
+                ).toLocaleTimeString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
                   hour12: true,
                 })}
               </Text>
@@ -101,7 +176,9 @@ function History() {
                 max={40}
               />
               <HealthMetric
-                icon={<MaterialIcons name="thermostat" size={24} color="#1e90ff" />}
+                icon={
+                  <MaterialIcons name="thermostat" size={24} color="#1e90ff" />
+                }
                 label="Room Temp"
                 value={data.roomTemperature}
                 unit="°C"
@@ -109,7 +186,13 @@ function History() {
                 max={40}
               />
               <HealthMetric
-                icon={<MaterialCommunityIcons name="water-percent" size={24} color="#00bfff" />}
+                icon={
+                  <MaterialCommunityIcons
+                    name="water-percent"
+                    size={24}
+                    color="#00bfff"
+                  />
+                }
                 label="Humidity"
                 value={data.humidity}
                 unit="%"
@@ -117,7 +200,9 @@ function History() {
                 max={100}
               />
               <HealthMetric
-                icon={<FontAwesome5 name="heartbeat" size={24} color="#dc143c" />}
+                icon={
+                  <FontAwesome5 name="heartbeat" size={24} color="#dc143c" />
+                }
                 label="Pulse"
                 value={data.heartRate}
                 unit="BPM"
@@ -125,7 +210,13 @@ function History() {
                 max={150}
               />
               <HealthMetric
-                icon={<MaterialCommunityIcons name="water-opacity" size={24} color="#4caf50" />}
+                icon={
+                  <MaterialCommunityIcons
+                    name="water-opacity"
+                    size={24}
+                    color="#4caf50"
+                  />
+                }
                 label="SpO₂"
                 value={data.oxygen}
                 unit="%"
@@ -133,9 +224,53 @@ function History() {
                 max={100}
               />
             </View>
+            <TouchableOpacity
+              style={styles.sendButton}
+              onPress={() => handleSendEmail(data)}
+            >
+              <Ionicons name="send-outline" size={18} color="#fff" />
+              <Text style={styles.sendButtonText}>Send to my doctor</Text>
+            </TouchableOpacity>
           </View>
         ))}
       </ScrollView>
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={!!message}
+        onRequestClose={() => {
+          setMessage("");
+        }}
+      >
+        <View style={styles.centeredView}>
+          <View
+            style={[
+              styles.modalView,
+              messageType === "success"
+                ? styles.successMessage
+                : styles.errorMessage,
+            ]}
+          >
+            <Ionicons
+              name={
+                messageType === "success"
+                  ? "checkmark-circle-outline"
+                  : "alert-circle-outline"
+              }
+              size={48}
+              color={"#fff"}
+              style={{ marginBottom: 15 }}
+            />
+            <Text style={styles.modalText}>{message}</Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setMessage("")}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -169,60 +304,120 @@ const styles = StyleSheet.create({
     borderColor: "rgba(138, 132, 255, 0.5)",
   },
   dateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 15,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
   },
   dateText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    fontWeight: "bold",
+    color: "#FFFFFF",
     marginLeft: 10,
   },
   timeText: {
     fontSize: 14,
-    color: '#ccc',
-    marginLeft: 'auto',
+    color: "#ccc",
+    marginLeft: "auto",
   },
-    metricsList: {
+  metricsList: {
     marginTop: 10,
   },
   metricContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 20,
   },
   metricInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '35%',
+    flexDirection: "row",
+    alignItems: "center",
+    width: "35%",
   },
   sensorLabel: {
     fontSize: 14,
-    color: '#E0E0E0',
+    color: "#E0E0E0",
     marginLeft: 10,
   },
   metricValueBar: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 20,
   },
   sensorValue: {
     fontSize: 16,
-    fontWeight: 'bold',
-    alignSelf: 'flex-start',
+    fontWeight: "bold",
+    alignSelf: "flex-start",
+    marginBottom: 5,
   },
   progressBarBackground: {
     height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     borderRadius: 4,
     marginTop: 5,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   progressBar: {
     height: 8,
     borderRadius: 4,
+  },
+  sendButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ff0051",
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 20,
+  },
+  sendButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    marginLeft: 10,
+  },
+  centeredView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  modalView: {
+    margin: 20,
+    borderRadius: 20,
+    padding: 35,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  modalText: {
+    color: "white",
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  successMessage: {
+    backgroundColor: "#2E8B57",
+  },
+  errorMessage: {
+    backgroundColor: "#DC143C",
+  },
+  closeButton: {
+    marginTop: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  closeButtonText: {
+    color: "white",
+    fontWeight: "bold",
   },
 });

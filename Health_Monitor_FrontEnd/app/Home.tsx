@@ -5,7 +5,7 @@ import {
   StyleSheet,
   Image,
   TouchableOpacity,
-  ScrollView,
+
   Dimensions,
   Animated,
 } from "react-native";
@@ -249,7 +249,7 @@ export default function Home() {
       end={{ x: 1, y: 1.1 }}
       style={{ flex: 1 }}
     >
-      <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <View>
             <Text style={styles.hello}>Hello</Text>
@@ -385,7 +385,7 @@ export default function Home() {
             )}
           </View>
         )}
-      </ScrollView>
+      </View>
     </LinearGradient>
   );
 }
@@ -411,15 +411,16 @@ const chartConfig = {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    paddingBottom: 40,
+    flex: 1,
+    padding: 10,
+    paddingTop: 50,
   },
   header: {
-    marginTop: 20,
+    marginTop: 10,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 10,
   },
   hello: {
     fontSize: 16,
@@ -521,7 +522,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 25,
+    marginBottom: 10,
     borderRadius: 16,
     overflow: "hidden",
   },
@@ -554,16 +555,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginTop: 20,
+    marginTop: 10,
     alignSelf: 'stretch',
   },
   arrowButton: {
     padding: 10,
   },
   adviserContainer: {
-    marginTop: 20,
+    marginTop: 10,
     marginHorizontal: 10,
-    padding: 15,
+    padding: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 15,
     borderWidth: 1,

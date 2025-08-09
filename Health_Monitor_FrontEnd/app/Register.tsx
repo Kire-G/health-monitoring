@@ -89,63 +89,59 @@ export default function Register ({ navigation }: { navigation: any }) {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#f5f5f5'
-    },
-    form: {
-        width: '80%',
-        padding: 20,
-        backgroundColor: '#fff',
-        borderRadius: 8,
-        elevation: 3,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        marginBottom: 20,
-    },
-    inputContainer: {
-        marginBottom: 15,
-    },
-    label: {
-        marginBottom: 5,
-        fontSize: 16,
-        color: '#333',
-    },
-    input: {
-        width: '100%',
-        padding: 10,
-        borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 4,
-        backgroundColor: '#f9f9f9',
-    },
-    button: {
-        marginTop: 10,
-        padding: 15,
-        backgroundColor: '#007BFF',
-        borderRadius: 4,
-        alignItems: 'center',
-    },
-    buttonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    
-    link: {
-        color: '#007BFF',
-        textAlign: 'center',
-        textDecorationLine: 'underline',
-        fontSize: 14,
-        fontWeight: '400',
-    },
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#121212",
+    padding: 20,
+  },
+  form: {
+    width: "100%",
+    maxWidth: 400,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    textAlign: "center",
+    marginBottom: 40,
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  label: {
+    marginBottom: 8,
+    fontSize: 16,
+    color: "#ccc",
+  },
+  input: {
+    width: "100%",
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: "#555",
+    borderRadius: 8,
+    backgroundColor: "#2E2E2E",
+    color: "#FFFFFF",
+    fontSize: 16,
+  },
+  button: {
+    marginTop: 20,
+    padding: 15,
+    backgroundColor: "#ff0051",
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  link: {
+    color: "#ff0051",
+    textAlign: "center",
+    fontSize: 14,
+    fontWeight: "500",
+  },
 });

@@ -8,3 +8,22 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     show-sql: true
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: kireto5k@gmail.com
+    # IMPORTANT: Replace this with your 16-digit Gmail App Password
+    password: "vldpajddibdtjzpr"
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+# Added for debugging the 500 errors
+logging:
+  level:
+    org.springframework.web: DEBUG
+    org.springframework.mail: DEBUG
+    org.hibernate.SQL: DEBUG

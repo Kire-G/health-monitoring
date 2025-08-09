@@ -16,7 +16,7 @@ public class UserDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private Boolean smoker;
+
     private Double height;
     private Double weight;
     @Enumerated(EnumType.STRING)

@@ -9,30 +9,30 @@ import {
   Linking,
   Modal,
   Image,
+  FlatList,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { useAppContext } from "@/context/AppContext";
-import axios from "axios";
+import axiosInstance from "@/config/axiosConfig";
 import { USER_MEASUREMENTS } from "@/config/axiosConfig";
 import HealthData from "@/constants/HealthData";
-import { API_NINJAS_EXERCISE_API_KEY } from "../env";
 
 // Define types for workout and recipe for clarity
 interface Workout {
+  id: string;
   name: string;
-  type: string;
-  muscle: string;
+  gifUrl: string;
+  target: string;
   equipment: string;
-  difficulty: string;
-  instructions: string;
+  instructions: string[];
 }
 
 interface Recipe {
   id: string;
   title: string;
   url: string | null;
-  image: string | null; // Add image property
+  image: string | null;
 }
 
 // Helper function to get an icon for a given muscle group
@@ -43,21 +43,21 @@ const getWorkoutIcon = (muscle: string) => {
       return "dumbbell";
     case "chest":
     case "triceps":
-      return "user-plus"; // A generic person icon
+      return "user-plus";
     case "lats":
     case "lower_back":
     case "middle_back":
-      return "running"; // Represents back/body strength
+      return "running";
     case "neck":
-      return "child"; // Represents posture/neck alignment
+      return "child";
     case "quadriceps":
     case "hamstrings":
     case "calves":
-      return "walking"; // Leg-focused
+      return "walking";
     case "cardio":
       return "heartbeat";
     default:
-      return "running"; // A default for other muscles
+      return "running";
   }
 };
 
@@ -69,17 +69,41 @@ const Personalized = () => {
   const [recommendedWorkouts, setRecommendedWorkouts] = useState<Workout[]>([]);
   const [recommendedRecipes, setRecommendedRecipes] = useState<Recipe[]>([]);
   const [loadingWorkouts, setLoadingWorkouts] = useState(true);
-  const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
   const [loadingRecipes, setLoadingRecipes] = useState(true);
+  const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
+
+  const capitalizeFirstLetter = (string: string | undefined) => {
+    if (!string) return '';
+    return string.charAt(0).toUpperCase() + string.slice(1);
+  };
+
+  const getWorkoutIcon = (target: string) => {
+    const muscle = target.toLowerCase();
+    // Cardio
+    if (muscle.includes('cardio')) return 'heartbeat';
+    // Legs
+    if (['quads', 'glutes', 'legs', 'calves', 'hamstrings', 'abductors', 'adductors'].some(m => muscle.includes(m))) return 'running';
+    // Arms
+    if (['biceps', 'triceps', 'arms', 'forearms'].some(m => muscle.includes(m))) return 'dumbbell';
+    // Back & Shoulders
+    if (['lats', 'back', 'shoulders', 'delts', 'traps'].some(m => muscle.includes(m))) return 'weight-hanging';
+    // Chest & Core
+    if (['abs', 'pectorals', 'chest', 'waist', 'spine'].some(m => muscle.includes(m))) return 'fire';
+    // Default
+    return 'running';
+  };
 
   // Fetch health data
   useEffect(() => {
     const getMeasurements = async () => {
       if (!user?.email) return;
       try {
-        const response = await axios.get(`${USER_MEASUREMENTS}/all-by-user`, {
-          params: { email: user.email },
-        });
+        const response = await axiosInstance.get(
+          `${USER_MEASUREMENTS}/all-by-user`,
+          {
+            params: { email: user.email },
+          }
+        );
         if (response.data && response.data.length > 0) {
           const sortedData = response.data.sort(
             (a: HealthData, b: HealthData) =>
@@ -96,230 +120,157 @@ const Personalized = () => {
     getMeasurements();
   }, [user]);
 
-  // Fetch workouts and instructions from API Ninjas
-  useEffect(() => {
-    const getWorkouts = async () => {
-      if (!lastMeasurement) return;
-
-      // Map health data to muscle groups for API Ninjas
-      let muscle = "chest"; // Default
-      if (lastMeasurement.temperature > 37.5) {
-        muscle = "neck";
-      } else if (lastMeasurement.heartRate > 100) {
-        muscle = "lower_back"; // Calming, posture-focused
-      } else if (lastMeasurement.oxygen < 95) {
-        // For cardio, we will fetch a cardio exercise by name as the API is muscle-focused
-        muscle = ""; // Clear muscle to search by name
-      }
-
-      try {
-        let apiUrl = `https://api.api-ninjas.com/v1/exercises?muscle=${muscle}`;
-        if (muscle === "") {
-          // If cardio is needed, search for a cardio exercise by name
-          apiUrl = `https://api.api-ninjas.com/v1/exercises?name=jogging`;
-        }
-
-        const response = await axios.get(apiUrl, {
-
-            headers: {
-              "X-Api-Key": API_NINJAS_EXERCISE_API_KEY,
-            },
-          }
-        );
-        // API Ninjas returns up to 10 random exercises, so we just take the first 5
-        setRecommendedWorkouts(response.data.slice(0, 5));
-      } catch (error) {
-        console.error("Error fetching workouts from API Ninjas:", error);
-      } finally {
-        setLoadingWorkouts(false);
-      }
-    };
-
-    if (lastMeasurement) {
-      getWorkouts();
-    }
-  }, [lastMeasurement]);
-
   // Fetch recipes from TheMealDB API
   useEffect(() => {
     const getRecipes = async () => {
       if (!lastMeasurement) return;
       setLoadingRecipes(true);
 
-      // More detailed logic to choose ingredients based on health data
       const ingredients: string[] = [];
       if (lastMeasurement.temperature > 37.5) {
-        ingredients.push("Chicken", "Lemon"); // Soups and hydrating foods
+        ingredients.push("Chicken", "Lemon");
       } else if (lastMeasurement.heartRate > 100) {
-        ingredients.push("Oats", "Banana", "Berries"); // Heart-healthy foods
+        ingredients.push("Oats", "Banana");
       } else if (lastMeasurement.oxygen < 95) {
-        ingredients.push("Spinach", "Lentils", "Beef"); // Iron-rich foods
+        ingredients.push("Spinach", "Broccoli");
       } else {
-        // Default healthy options
-        ingredients.push("Chicken", "Broccoli", "Quinoa");
+        ingredients.push("Salmon", "Avocado");
       }
 
       try {
-        // 1. Fetch meals for each recommended ingredient
         const mealPromises = ingredients.map((ingredient) =>
-          axios.get(
+          axiosInstance.get(
             `https://www.themealdb.com/api/json/v1/1/filter.php?i=${ingredient}`
           )
         );
-        const mealResponses = await Promise.all(mealPromises);
 
-        let allMeals: any[] = [];
+        const mealResponses = await Promise.all(mealPromises);
+        let meals: Recipe[] = [];
         mealResponses.forEach((response) => {
           if (response.data.meals) {
-            allMeals = [...allMeals, ...response.data.meals];
+            const recipes = response.data.meals.map((meal: any) => ({
+              id: meal.idMeal,
+              title: meal.strMeal,
+              image: meal.strMealThumb,
+              url: `https://www.themealdb.com/meal/${meal.idMeal}`,
+            }));
+            meals = [...meals, ...recipes];
           }
         });
-
-        // Remove duplicates and shuffle
-        const uniqueMeals = Array.from(
-          new Set(allMeals.map((m) => m.idMeal))
-        ).map((id) => {
-          return allMeals.find((m) => m.idMeal === id);
-        });
-        const randomMeals = uniqueMeals
-          .sort(() => 0.5 - Math.random())
-          .slice(0, 5);
-
-        if (randomMeals.length > 0) {
-          // 2. Get details for the selected meals
-          const recipePromises = randomMeals.map((meal: any) =>
-            axios.get(
-              `https://www.themealdb.com/api/json/v1/1/lookup.php?i=${meal.idMeal}`
-            )
-          );
-
-          const recipeResponses = await Promise.all(recipePromises);
-
-          const fetchedRecipes = recipeResponses
-            .map((res) => {
-              const mealDetails = res.data.meals[0];
-              return {
-                id: mealDetails.idMeal,
-                title: mealDetails.strMeal,
-                url: mealDetails.strSource,
-                image: mealDetails.strMealThumb, // Get the thumbnail image
-              };
-            })
-            .filter((r) => r.url); // Ensure we only process recipes with a URL
-
-          // Validate URLs in parallel to ensure they are reachable
-          const validatedRecipes: Recipe[] = [];
-          const validationPromises = fetchedRecipes.map(async (recipe) => {
-            try {
-              await axios.head(recipe.url!);
-              return true; // URL is reachable
-            } catch (error) {
-              console.warn(`Filtering out unreachable URL: ${recipe.url}`);
-              return false; // URL is not reachable
-            }
-          });
-
-          const results = await Promise.all(validationPromises);
-          const finalRecipes = fetchedRecipes.filter(
-            (_, index) => results[index]
-          );
-
-          setRecommendedRecipes(finalRecipes);
-        } else {
-          setRecommendedRecipes([]);
-        }
+        setRecommendedRecipes(meals);
       } catch (error) {
-        console.error("Error fetching recipes from TheMealDB:", error);
-        setRecommendedRecipes([]);
+        console.error("Error fetching recipes:", error);
       } finally {
         setLoadingRecipes(false);
       }
     };
 
-    if (lastMeasurement) {
-      getRecipes();
-    }
+    getRecipes();
   }, [lastMeasurement]);
 
-  if (loadingWorkouts || loadingRecipes) {
-    return (
-      <LinearGradient
-        colors={["#050505", "#1c1c1c", "#2a2a3d"]}
-        style={styles.fullScreen}
-      >
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#8A84FF" />
-          <Text style={{ color: "#fff", marginTop: 10 }}>
-            Finding recommendations for you...
-          </Text>
-        </View>
-      </LinearGradient>
-    );
-  }
+  // Fetch workouts
+  useEffect(() => {
+    const getWorkouts = async () => {
+      if (!user || !lastMeasurement) return;
+
+      setLoadingWorkouts(true);
+      try {
+        const params = {
+          age: user.age || 30, // Default age if not set
+          gender: user.userDetails?.gender || 'Male',
+          heartRate: lastMeasurement.heartRate,
+        };
+
+        const response = await axiosInstance.get(
+          `/api/workouts/recommendations`,
+          { params }
+        );
+        setRecommendedWorkouts(response.data);
+      } catch (error) {
+        console.error("Error fetching workouts:", error);
+      } finally {
+        setLoadingWorkouts(false);
+      }
+    };
+
+    if (user && lastMeasurement) {
+      getWorkouts();
+    }
+  }, [user, lastMeasurement]);
+
+  const renderListHeader = () => (
+    <>
+      <Text style={styles.header}>Personalized For You</Text>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Workout Recommendations</Text>
+      </View>
+    </>
+  );
+
+  const renderListFooter = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Nutritional Suggestions</Text>
+      {loadingRecipes ? (
+        <ActivityIndicator size="large" color="#FFFFFF" />
+      ) : recommendedRecipes.length > 0 ? (
+        recommendedRecipes.slice(0, 5).map((recipe) => (
+          <TouchableOpacity
+            key={recipe.id}
+            style={styles.card}
+            onPress={() => recipe.url && Linking.openURL(recipe.url)}
+          >
+            <Image
+              source={{ uri: recipe.image || undefined }}
+              style={styles.cardImage}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>{recipe.title}</Text>
+            </View>
+          </TouchableOpacity>
+        ))
+      ) : (
+        <Text style={styles.infoText}>
+          No recipe recommendations available at this time.
+        </Text>
+      )}
+    </View>
+  );
 
   return (
-    <LinearGradient
-      colors={["#050505", "#1c1c1c", "#2a2a3d"]}
-      style={styles.fullScreen}
-    >
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.header}>Your Personalized Plan</Text>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Workout Recommendations</Text>
-          {recommendedWorkouts.length > 0 ? (
-            recommendedWorkouts.map((workout) => (
-              <TouchableOpacity
-                key={workout.name}
-                style={styles.card}
-                onPress={() => setSelectedWorkout(workout)}
-              >
+    <LinearGradient colors={["#1E1E1E", "#121212"]} style={styles.fullScreen}>
+      {loadingWorkouts ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+        </View>
+      ) : (
+        <FlatList
+          style={styles.container}
+          data={recommendedWorkouts}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.workoutItem}
+              onPress={() => setSelectedWorkout(item)}
+            >
+              <View style={styles.iconContainer}>
                 <FontAwesome5
-                  name={getWorkoutIcon(workout.muscle)}
-                  size={30}
+                  name={getWorkoutIcon(item.target)}
+                  size={24}
                   color="#8A84FF"
-                  style={styles.icon}
                 />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{workout.name}</Text>
-                  <Text style={styles.cardSubtitle}>
-                    Muscle: {workout.muscle}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <Text style={styles.infoText}>
-              No workout recommendations available at this time.
-            </Text>
+              </View>
+              <Text style={styles.workoutName}>{capitalizeFirstLetter(item.name)}</Text>
+            </TouchableOpacity>
           )}
-        </View>
-
-        {/* Placeholder for Recipes */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recipe Recommendations</Text>
-          {recommendedRecipes.length > 0 ? (
-            recommendedRecipes.map((recipe) => (
-              <TouchableOpacity
-                key={recipe.id}
-                style={styles.card}
-                onPress={() => recipe.url && Linking.openURL(recipe.url)}
-              >
-                {recipe.image && (
-                  <Image source={{ uri: recipe.image }} style={styles.cardImage} />
-                )}
-                <View style={{ flex: 1, marginLeft: recipe.image ? 15 : 0 }}>
-                  <Text style={styles.cardTitle}>{recipe.title}</Text>
-                </View>
-              </TouchableOpacity>
-            ))
-          ) : (
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderListHeader}
+          ListFooterComponent={renderListFooter}
+          ListEmptyComponent={
             <Text style={styles.infoText}>
-              No recipe recommendations available at this time.
+              No workout recommendations available. Please check back later!
             </Text>
-          )}
-        </View>
-      </ScrollView>
+          }
+        />
+      )}
 
       {/* Modal to display workout instructions */}
       <Modal
@@ -330,18 +281,48 @@ const Personalized = () => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{selectedWorkout?.name}</Text>
+            <Text style={styles.modalTitle}>{capitalizeFirstLetter(selectedWorkout?.name)}</Text>
+            {selectedWorkout?.gifUrl && (
+              <Image
+                source={{ uri: selectedWorkout.gifUrl }}
+                style={styles.workoutGif}
+              />
+            )}
+            <Text style={styles.modalText}>
+              Target: {selectedWorkout?.target}
+            </Text>
+            <Text style={styles.modalText}>
+              Equipment: {selectedWorkout?.equipment}
+            </Text>
             <ScrollView style={styles.instructionsScrollView}>
               <Text style={styles.instructionsText}>
-                {selectedWorkout?.instructions}
+                {Array.isArray(selectedWorkout?.instructions)
+                  ? selectedWorkout.instructions.join("\n\n")
+                  : selectedWorkout?.instructions}
               </Text>
             </ScrollView>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setSelectedWorkout(null)}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
+
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={styles.youtubeButton}
+                onPress={() => {
+                  if (selectedWorkout?.name) {
+                    const query = encodeURIComponent(`${selectedWorkout.name} tutorial`);
+                    const url = `https://www.youtube.com/results?search_query=${query}`;
+                    Linking.openURL(url);
+                  }
+                }}
+              >
+                <Text style={styles.youtubeButtonText}>Watch on YouTube</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setSelectedWorkout(null)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -354,9 +335,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   container: {
-    paddingTop: 60, // Increased top padding
+    paddingTop: 50,
     paddingHorizontal: 20,
-    paddingBottom: 40, // Keep bottom padding
+    paddingBottom: 20,
   },
   centered: {
     flex: 1,
@@ -366,7 +347,7 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#FFF",
+    color: "#FFFFFF",
     marginBottom: 20,
     textAlign: "center",
   },
@@ -375,15 +356,62 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 22,
-    fontWeight: "600",
-    color: "#FFFFFF", // White text for better contrast on dark background
-    backgroundColor: "rgba(57, 56, 81, 0.8)", // Matching card background
+    fontWeight: "bold",
+    color: "#FFFFFF",
     marginBottom: 15,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 25, // Rounded corners
+  },
+  workoutItem: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    padding: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  workoutName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    flexShrink: 1,
+  },
+  iconContainer: {
+    width: 50,
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  card: {
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 15,
+    padding: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  cardContent: {
+    flex: 1,
+  },
+  icon: {
+    marginRight: 15,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+  },
+  cardSubtitle: {
+    fontSize: 14,
+    color: "#CCCCCC",
+    marginTop: 2,
+  },
+  infoText: {
+    color: "#CCCCCC",
     textAlign: "center",
-    overflow: "hidden", // Ensures background respects border radius
+  },
+  cardImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    marginRight: 15,
   },
   modalContainer: {
     flex: 1,
@@ -392,95 +420,82 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContent: {
-    width: "90%",
-    backgroundColor: "#393851", // Dark, theme-consistent background
+    backgroundColor: "#2c2c2c",
     borderRadius: 20,
     padding: 20,
+    width: "95%",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
     elevation: 5,
-    maxHeight: "80%",
+    maxHeight: "95%",
+    minHeight: "80%", // Ensure a minimum height
+    borderColor: "#8A84FF",
+    borderWidth: 1,
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+  },
+  workoutGif: {
+    width: 250,
+    height: 250,
+    alignSelf: 'center',
+    marginBottom: 15,
+    borderRadius: 10,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "bold",
     marginBottom: 15,
-    color: "#FFFFFF", // White text for dark background
+    textAlign: "center",
+    color: "#FFFFFF",
+    textTransform: "capitalize",
+  },
+  modalText: {
+    fontSize: 16,
+    marginBottom: 10,
+    color: "#E0E0E0",
+    lineHeight: 24,
+    textTransform: "capitalize",
   },
   instructionsScrollView: {
-    width: "100%",
-    marginBottom: 15,
+    flex: 1, // Allow this to grow
+    width: '100%',
+    marginVertical: 15,
   },
   instructionsText: {
     fontSize: 16,
-    lineHeight: 26, // Increased for better readability
-    color: "#E0E0E0", // Light grey for readability
-    textAlign: "justify", // Justified text for a clean, block look
+    color: "#E0E0E0",
+    lineHeight: 24,
+  },
+  youtubeButton: {
+    backgroundColor: "#FF0000",
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 15,
+    width: '100%',
+    alignItems: 'center',
+  },
+  youtubeButtonText: {
+    color: "#fff",
+    textAlign: "center",
+    fontWeight: "bold",
+    fontSize: 16,
   },
   closeButton: {
-    backgroundColor: "#FF6347",
-    borderRadius: 20,
-    padding: 10,
-    elevation: 2,
-    width: "100%",
-    alignItems: "center",
+    backgroundColor: "#8A84FF",
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 10,
+    width: '100%',
+    alignItems: 'center',
   },
   closeButtonText: {
-    color: "white",
-    fontWeight: "bold",
+    color: "#fff",
     textAlign: "center",
+    fontWeight: "bold",
     fontSize: 16,
   },
-  card: {
-    backgroundColor: "rgba(57, 56, 81, 0.8)",
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "rgba(138, 132, 255, 0.5)",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  videoButton: {
-    backgroundColor: "#8A84FF",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  icon: {
-    marginRight: 20,
-    width: 30,
-    textAlign: 'center',
-  },
-  videoButtonText: {
-    color: "#FFF",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  cardImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 10,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFF",
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    color: "#ccc",
-    marginTop: 5,
-  },
-  infoText: {
-    color: "#ccc",
-    fontSize: 16,
+  buttonContainer: {
+    width: '100%',
+    marginTop: 10,
   },
 });
 

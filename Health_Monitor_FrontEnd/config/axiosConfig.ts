@@ -1,13 +1,13 @@
 import axios from "axios";
-export const baseURL = `http://192.168.1.236:8080`; // SOFIQ
-//export const baseURL = `http://192.168.0.105:8080`; // seloto
-export const USER_MEASUREMENTS = `${baseURL}/measurements`;
-export const USER = `${baseURL}/user`;
+import { API_BASE_URL } from "@/api"; // Import the centralized base URL
+
+export const USER_MEASUREMENTS = `${API_BASE_URL}/measurements`;
+export const USER = `${API_BASE_URL}/user`;
 
 // Create an Axios instance
 const axiosInstance = axios.create({
-  baseURL: baseURL, // Replace with your API base URL
-  timeout: 100, // Request timeout in milliseconds
+  baseURL: API_BASE_URL, // Use the imported base URL
+  timeout: 30000, // Request timeout in milliseconds (30 seconds)
 });
 
 axiosInstance.interceptors.request.use(
