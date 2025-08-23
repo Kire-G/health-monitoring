@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,11 +12,12 @@ import {
   FlatList,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { FontAwesome5 } from "@expo/vector-icons";
+import { FontAwesome5, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppContext } from "@/context/AppContext";
 import axiosInstance from "@/config/axiosConfig";
 import { USER_MEASUREMENTS } from "@/config/axiosConfig";
 import HealthData from "@/constants/HealthData";
+import { NavigationProp, useNavigation, useFocusEffect } from "@react-navigation/native";
 
 // Define types for workout and recipe for clarity
 interface Workout {
@@ -62,6 +63,7 @@ const getWorkoutIcon = (muscle: string) => {
 };
 
 const Personalized = () => {
+  const navigation = useNavigation<NavigationProp<any>>();
   const { user } = useAppContext();
   const [lastMeasurement, setLastMeasurement] = useState<HealthData | null>(
     null
@@ -94,31 +96,43 @@ const Personalized = () => {
   };
 
   // Fetch health data
-  useEffect(() => {
-    const getMeasurements = async () => {
-      if (!user?.email) return;
-      try {
-        const response = await axiosInstance.get(
-          `${USER_MEASUREMENTS}/all-by-user`,
-          {
-            params: { email: user.email },
-          }
-        );
-        if (response.data && response.data.length > 0) {
-          const sortedData = response.data.sort(
-            (a: HealthData, b: HealthData) =>
-              new Date(b.dateOfMeasurement).getTime() -
-              new Date(a.dateOfMeasurement).getTime()
-          );
-          setLastMeasurement(sortedData[0]);
+  const getMeasurements = useCallback(async () => {
+    if (!user?.email) {
+      setLastMeasurement(null);
+      return;
+    }
+    try {
+      const response = await axiosInstance.get(
+        `${USER_MEASUREMENTS}/all-by-user`,
+        {
+          params: { email: user.email },
         }
-      } catch (error) {
-        console.error("Error fetching measurements:", error);
+      );
+      if (response.data && response.data.length > 0) {
+        const sortedData = response.data.sort(
+          (a: HealthData, b: HealthData) =>
+            new Date(b.dateOfMeasurement).getTime() -
+            new Date(a.dateOfMeasurement).getTime()
+        );
+        setLastMeasurement(sortedData[0]);
+      } else {
+        setLastMeasurement(null);
       }
-    };
+    } catch (error) {
+      console.error("Error fetching measurements:", error);
+    }
+  }, [user?.email]);
 
+  useEffect(() => {
     getMeasurements();
-  }, [user]);
+  }, [getMeasurements]);
+
+  // Re-fetch on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      getMeasurements();
+    }, [getMeasurements])
+  );
 
   // Fetch recipes from TheMealDB API
   useEffect(() => {
@@ -157,7 +171,8 @@ const Personalized = () => {
             meals = [...meals, ...recipes];
           }
         });
-        setRecommendedRecipes(meals);
+        // Limit to 5 recipes
+        setRecommendedRecipes(meals.slice(0, 5));
       } catch (error) {
         console.error("Error fetching recipes:", error);
       } finally {
@@ -185,7 +200,8 @@ const Personalized = () => {
           `/api/workouts/recommendations`,
           { params }
         );
-        setRecommendedWorkouts(response.data);
+        // Limit to 5 workouts
+        setRecommendedWorkouts((response.data || []).slice(0, 5));
       } catch (error) {
         console.error("Error fetching workouts:", error);
       } finally {
@@ -200,34 +216,36 @@ const Personalized = () => {
 
   const renderListHeader = () => (
     <>
-      <Text style={styles.header}>Personalized For You</Text>
+      <Text style={styles.sectionTitle}>Personalized For You</Text>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Workout Recommendations</Text>
+        <Text style={styles.subSectionTitle}>Workout Recommendations</Text>
       </View>
     </>
   );
 
   const renderListFooter = () => (
-    <View style={styles.section}>
+    <View style={styles.footerSection}>
       <Text style={styles.sectionTitle}>Nutritional Suggestions</Text>
       {loadingRecipes ? (
         <ActivityIndicator size="large" color="#FFFFFF" />
       ) : recommendedRecipes.length > 0 ? (
-        recommendedRecipes.slice(0, 5).map((recipe) => (
-          <TouchableOpacity
-            key={recipe.id}
-            style={styles.card}
-            onPress={() => recipe.url && Linking.openURL(recipe.url)}
-          >
-            <Image
-              source={{ uri: recipe.image || undefined }}
-              style={styles.cardImage}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{recipe.title}</Text>
-            </View>
-          </TouchableOpacity>
-        ))
+        <View style={styles.recipeList}>
+          {recommendedRecipes.slice(0, 5).map((recipe) => (
+            <TouchableOpacity
+              key={recipe.id}
+              style={styles.card}
+              onPress={() => recipe.url && Linking.openURL(recipe.url)}
+            >
+              <Image
+                source={{ uri: recipe.image || undefined }}
+                style={styles.cardImage}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>{recipe.title}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
       ) : (
         <Text style={styles.infoText}>
           No recipe recommendations available at this time.
@@ -238,7 +256,24 @@ const Personalized = () => {
 
   return (
     <LinearGradient colors={["#1E1E1E", "#121212"]} style={styles.fullScreen}>
-      {loadingWorkouts ? (
+      {!lastMeasurement ? (
+        <View style={[styles.container, { paddingTop: 80 }]}>
+          <Text style={styles.sectionTitle}>Personalized For You</Text>
+          <View style={styles.emptyStateContainer}>
+            <MaterialCommunityIcons name="chart-line" size={56} color="#8A84FF" />
+            <Text style={styles.emptyTitle}>No measurements yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Take your first measurement to unlock personalized workouts and recipes.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyButton}
+              onPress={() => navigation.navigate("Monitoring")}
+            >
+              <Text style={styles.emptyButtonText}>Measure now</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : loadingWorkouts ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#FFFFFF" />
         </View>
@@ -258,10 +293,13 @@ const Personalized = () => {
                   color="#8A84FF"
                 />
               </View>
-              <Text style={styles.workoutName}>{capitalizeFirstLetter(item.name)}</Text>
+              <Text style={styles.workoutName} numberOfLines={1} ellipsizeMode="tail">
+                {capitalizeFirstLetter(item.name)}
+              </Text>
             </TouchableOpacity>
           )}
           keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
           ListHeaderComponent={renderListHeader}
           ListFooterComponent={renderListFooter}
           ListEmptyComponent={
@@ -344,21 +382,37 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  header: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  section: {
-    marginBottom: 30,
-  },
   sectionTitle: {
+    fontSize: 22,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    backgroundColor: "rgba(57, 56, 81, 0.8)",
+    marginBottom: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    textAlign: "center",
+    overflow: "hidden",
+  },
+  subSectionTitle: {
     fontSize: 22,
     fontWeight: "bold",
     color: "#FFFFFF",
-    marginBottom: 15,
+    marginBottom: 16,
+  },
+  section: {
+    marginBottom: 0,
+  },
+  footerSection: {
+    marginTop: 24,
+    paddingTop: 8,
+    marginBottom: 32,
+  },
+  recipeList: {
+    marginTop: 0,
+  },
+  listContent: {
+    paddingBottom: 32,
   },
   workoutItem: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -373,6 +427,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     flexShrink: 1,
+    flex: 1,
+    overflow: 'hidden',
   },
   iconContainer: {
     width: 50,
@@ -496,6 +552,40 @@ const styles = StyleSheet.create({
   buttonContainer: {
     width: '100%',
     marginTop: 10,
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  emptyTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 12,
+  },
+  emptySubtitle: {
+    color: '#cccccc',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  emptyButton: {
+    marginTop: 16,
+    backgroundColor: '#ff0051',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+  },
+  emptyButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
 

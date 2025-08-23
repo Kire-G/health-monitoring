@@ -15,6 +15,7 @@ import {
   Alert,
   Modal,
 } from "react-native";
+import { NavigationProp, useNavigation, useFocusEffect } from "@react-navigation/native";
 
 // A new component to render each health metric with a progress bar
 const HealthMetric = ({ icon, label, value, unit, color, max }) => {
@@ -44,11 +45,12 @@ const HealthMetric = ({ icon, label, value, unit, color, max }) => {
 import { LinearGradient } from "expo-linear-gradient";
 import { USER_MEASUREMENTS } from "@/config/axiosConfig";
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAppContext } from "@/context/AppContext";
 import { baseURL } from "@/config/axiosConfig";
 
 function History() {
+  const navigation = useNavigation<NavigationProp<any>>();
   const { user } = useAppContext();
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">(
@@ -107,9 +109,14 @@ ${user.name}
   const [healthData, setHealthData] = useState<HealthData[]>([]);
 
   const getMeasurementsHistoryByUserEmail = async () => {
+    // Avoid calling the API if the user is logged out or email is missing
+    if (!user?.email) {
+      setHealthData([]);
+      return;
+    }
     try {
       const response = await axios.get(`${USER_MEASUREMENTS}/all-by-user`, {
-        params: { email: user?.email },
+        params: { email: user.email },
       });
       if (response.data) {
         const sortedData = response.data.sort(
@@ -134,6 +141,13 @@ ${user.name}
     getMeasurementsHistoryByUserEmail();
   }, [user]);
 
+  // Re-fetch on screen focus so History updates after first measurement
+  useFocusEffect(
+    useCallback(() => {
+      getMeasurementsHistoryByUserEmail();
+    }, [user?.email])
+  );
+
   return (
     <LinearGradient
       colors={["#050505", "#1c1c1c", "#2a2a3d"]}
@@ -141,8 +155,21 @@ ${user.name}
     >
       <ScrollView>
         <Text style={styles.sectionTitle}>Measurement History</Text>
-
-        {healthData?.map((data, index) => (
+        {(!healthData || healthData.length === 0) ? (
+          <View style={styles.emptyStateContainer}>
+            <MaterialCommunityIcons name="chart-line" size={56} color="#8A84FF" />
+            <Text style={styles.emptyTitle}>No measurements found</Text>
+            <Text style={styles.emptySubtitle}>
+              Take a quick measurement to start building your history.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyButton}
+              onPress={() => navigation.navigate("Monitoring")}
+            >
+              <Text style={styles.emptyButtonText}>Measure now</Text>
+            </TouchableOpacity>
+          </View>
+        ) : healthData?.map((data, index) => (
           <View key={index} style={styles.sensorCard}>
             <View style={styles.dateContainer}>
               <Ionicons name="calendar-outline" size={16} color="#aaa" />
@@ -419,5 +446,40 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: "white",
     fontWeight: "bold",
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    marginTop: 10,
+  },
+  emptyTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 12,
+  },
+  emptySubtitle: {
+    color: '#cccccc',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  emptyButton: {
+    marginTop: 16,
+    backgroundColor: '#ff0051',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+  },
+  emptyButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });

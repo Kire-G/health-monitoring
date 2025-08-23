@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   Dimensions,
   Animated,
 } from "react-native";
-import { NavigationProp, useNavigation } from "@react-navigation/native";
+import { NavigationProp, useNavigation, useFocusEffect } from "@react-navigation/native";
 import {
   Ionicons,
   FontAwesome5,
@@ -93,8 +93,14 @@ export default function Home() {
 
   const getMeasurementsHistoryByUserEmail = async () => {
     try {
+      if (!user?.email) {
+        setMeasurementsHistory([]);
+        setLastMeasurement(null);
+        setAverageData({ data: null, type: 'monthly' });
+        return;
+      }
       const response = await axios.get(`${USER_MEASUREMENTS}/all-by-user`, {
-        params: { email: user?.email },
+        params: { email: user.email },
       });
       if (response.data && response.data.length > 0) {
 
@@ -107,7 +113,7 @@ export default function Home() {
         );
         setMeasurementsHistory(sortedData);
         setLastMeasurement(sortedData[0]);
-
+        calculateAveragesFrom(sortedData);
 
       }
     } catch (error) {
@@ -136,18 +142,18 @@ export default function Home() {
     }
   }, [selectedVital, dataToDisplay]);
 
-  const calculateAverages = () => {
+  const calculateAveragesFrom = (list: HealthData[]) => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    let measurementsToAverage = measurementsHistory.filter(
+    let measurementsToAverage = list.filter(
       (m) => new Date(m.dateOfMeasurement.replace(' ', 'T')).getTime() >= thirtyDaysAgo.getTime()
     );
 
     let averageType: 'monthly' | 'overall' = 'monthly';
 
-    if (measurementsToAverage.length === 0 && measurementsHistory.length > 0) {
-      measurementsToAverage = measurementsHistory;
+    if (measurementsToAverage.length === 0 && list.length > 0) {
+      measurementsToAverage = list;
       averageType = 'overall';
     }
 
@@ -178,9 +184,25 @@ export default function Home() {
 
   useEffect(() => {
     if (measurementsHistory.length > 0) {
-      calculateAverages();
+      calculateAveragesFrom(measurementsHistory);
+    } else {
+      setAverageData({ data: null, type: 'monthly' });
     }
   }, [measurementsHistory]);
+
+  // If user toggles to monthly view, recompute averages immediately
+  useEffect(() => {
+    if (displayMode === 'monthly') {
+      calculateAveragesFrom(measurementsHistory);
+    }
+  }, [displayMode, measurementsHistory]);
+
+  // Re-fetch on screen focus so switching back updates Last/Monthly views
+  useFocusEffect(
+    useCallback(() => {
+      getMeasurementsHistoryByUserEmail();
+    }, [user?.email])
+  );
 
 
 
@@ -278,7 +300,7 @@ export default function Home() {
           </TouchableOpacity>
         </LinearGradient>
 
-        {lastMeasurement && (
+        {lastMeasurement ? (
           <View style={styles.interactiveContainer}>
             <View style={styles.sectionHeaderContainer}>
       
@@ -383,6 +405,14 @@ export default function Home() {
                 <Text style={styles.vitalValue}>No data available</Text>
               </View>
             )}
+          </View>
+        ) : (
+          <View style={styles.emptyStateContainer}>
+            <MaterialCommunityIcons name="chart-line" size={56} color="#8A84FF" />
+            <Text style={styles.emptyTitle}>No measurements yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Take your first measurement to see your vitals, guidance, and trends.
+            </Text>
           </View>
         )}
       </View>
@@ -580,6 +610,40 @@ const styles = StyleSheet.create({
     color: '#eee',
     fontSize: 16,
     lineHeight: 24,
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  emptyTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 12,
+  },
+  emptySubtitle: {
+    color: '#cccccc',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  emptyButton: {
+    marginTop: 16,
+    backgroundColor: '#ff0051',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+  },
+  emptyButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   criticalText: {
     color: '#ff0000',

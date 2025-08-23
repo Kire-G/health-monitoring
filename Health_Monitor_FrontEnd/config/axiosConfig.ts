@@ -3,6 +3,7 @@ import { API_BASE_URL } from "@/api"; // Import the centralized base URL
 
 export const USER_MEASUREMENTS = `${API_BASE_URL}/measurements`;
 export const USER = `${API_BASE_URL}/user`;
+export const baseURL = API_BASE_URL;
 
 // Create an Axios instance
 const axiosInstance = axios.create({
