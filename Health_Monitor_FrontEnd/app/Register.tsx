@@ -42,7 +42,6 @@ export default function Register ({ navigation }: { navigation: any }) {
             return;
         }
 
-        // Persist to backend
         try {
             const resp = await fetch(`${API_BASE_URL}/user/`, {
                 method: 'POST',

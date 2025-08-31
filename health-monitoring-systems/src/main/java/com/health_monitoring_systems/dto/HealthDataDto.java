@@ -11,7 +11,6 @@ public class HealthDataDto {
     private double oxygen;
     private String dateOfMeasurement;
 
-    // Getters and Setters
     public double getTemperature() {
         return temperature;
     }

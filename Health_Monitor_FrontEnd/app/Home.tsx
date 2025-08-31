@@ -43,28 +43,28 @@ const vitalDetails: Record<
   heartRate: {
     label: "Heart Rate",
     unit: "BPM",
-    range: [40, 160],
+    range: [0, 200],
     goodRange: [60, 100],
     gradient: ["#FF6B6B", "#FFB3B3"],
   },
   oxygen: {
     label: "SpO₂",
     unit: "%",
-    range: [90, 100],
+    range: [0, 100],
     goodRange: [95, 100],
     gradient: ["#32CD32", "#98FB98"],
   },
   temperature: {
     label: "Body Temp",
     unit: "°C",
-    range: [35, 42],
+    range: [30, 45],
     goodRange: [36.5, 37.5],
     gradient: ["#4D96FF", "#9ED2FF"],
   },
   roomTemperature: {
     label: "Room Temp",
     unit: "°C",
-    range: [15, 35],
+    range: [0, 50],
     goodRange: [20, 25],
     gradient: ["#6BDBFF", "#B5EEFF"],
   },
@@ -190,14 +190,12 @@ export default function Home() {
     }
   }, [measurementsHistory]);
 
-  // If user toggles to monthly view, recompute averages immediately
   useEffect(() => {
     if (displayMode === 'monthly') {
       calculateAveragesFrom(measurementsHistory);
     }
   }, [displayMode, measurementsHistory]);
 
-  // Re-fetch on screen focus so switching back updates Last/Monthly views
   useFocusEffect(
     useCallback(() => {
       getMeasurementsHistoryByUserEmail();
@@ -236,10 +234,15 @@ export default function Home() {
   };
 
   useEffect(() => {
+    blinkAnimation.stopAnimation();
+    blinkAnimation.setValue(1);
+    
     if (dataToDisplay) {
       animatedProgress.setValue(0);
-      const progress = dataToDisplay[selectedVital] != null
-        ? Math.max(0, Math.min(1, (dataToDisplay[selectedVital] - vitalDetails[selectedVital].range[0]) / (vitalDetails[selectedVital].range[1] - vitalDetails[selectedVital].range[0])))
+      const value = dataToDisplay[selectedVital];
+      const range = vitalDetails[selectedVital].range;
+      const progress = value != null
+        ? Math.max(0, Math.min(1, (value - range[0]) / (range[1] - range[0])))
         : 0;
 
       Animated.timing(animatedProgress, {
@@ -255,13 +258,13 @@ export default function Home() {
             Animated.timing(blinkAnimation, { toValue: 1, duration: 700, useNativeDriver: true }),
           ])
         ).start();
-      } else {
-        blinkAnimation.stopAnimation();
-        blinkAnimation.setValue(1);
       }
     }
 
-    return () => blinkAnimation.stopAnimation();
+    return () => {
+      blinkAnimation.stopAnimation();
+      blinkAnimation.setValue(1);
+    };
   }, [selectedVital, dataToDisplay, isCritical]);
 
   return (
@@ -349,7 +352,7 @@ export default function Home() {
                         cy="110"
                         r="85"
                         stroke={isCritical ? '#ff0000' : (dataToDisplay[selectedVital] >= vitalDetails[selectedVital].goodRange[0] && dataToDisplay[selectedVital] <= vitalDetails[selectedVital].goodRange[1] ? "#00FF7F" : "#FF453A")}
-                        opacity={isCritical ? blinkAnimation : 1}
+                        opacity={isCritical ? blinkAnimation : undefined}
                         strokeWidth="25"
                         fill="transparent"
                         strokeDasharray={2 * Math.PI * 85}
@@ -357,7 +360,7 @@ export default function Home() {
                           inputRange: [0, 1],
                           outputRange: [
                             2 * Math.PI * 85,
-                            2 * Math.PI * 85 * (1 - (isCritical ? 1 : Math.max(0, Math.min(1, (dataToDisplay[selectedVital] - vitalDetails[selectedVital].range[0]) / (vitalDetails[selectedVital].range[1] - vitalDetails[selectedVital].range[0])))))
+                            0
                           ],
                         })}
                         strokeLinecap="round"

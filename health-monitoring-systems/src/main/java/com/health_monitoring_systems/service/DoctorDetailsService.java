@@ -22,11 +22,25 @@ public class DoctorDetailsService {
     public DoctorDetails updateDoctorDetails(Long userId, DoctorDetails doctorDetails) {
         User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
         DoctorDetails existingDoctorDetails = user.getDoctorDetails();
+        
+        if (doctorDetails != null && 
+            (doctorDetails.getDoctorName() == null || doctorDetails.getDoctorName().trim().isEmpty()) &&
+            (doctorDetails.getDoctorEmail() == null || doctorDetails.getDoctorEmail().trim().isEmpty()) &&
+            (doctorDetails.getDoctorPhone() == null || doctorDetails.getDoctorPhone().trim().isEmpty())) {
+            
+            if (existingDoctorDetails != null) {
+                user.setDoctorDetails(null);
+                doctorDetailsRepository.delete(existingDoctorDetails);
+            }
+            return null;
+        }
+        
         if (existingDoctorDetails == null) {
             existingDoctorDetails = new DoctorDetails();
             existingDoctorDetails.setUser(user);
             user.setDoctorDetails(existingDoctorDetails);
         }
+        
         existingDoctorDetails.setDoctorName(doctorDetails.getDoctorName());
         existingDoctorDetails.setDoctorEmail(doctorDetails.getDoctorEmail());
         existingDoctorDetails.setDoctorPhone(doctorDetails.getDoctorPhone());

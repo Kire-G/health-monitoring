@@ -28,7 +28,7 @@ const { width, height } = Dimensions.get("window");
 export default function Monitoring() {
   const [healthData, setHealthData] = useState<SensorData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [measuring, setMeasuring] = useState(true); // starts measuring immediately
+  const [measuring, setMeasuring] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const [records, setRecords] = useState<SensorData[]>([]);
   const [showSummary, setShowSummary] = useState(false);
@@ -38,7 +38,6 @@ export default function Monitoring() {
   const [lastStable, setLastStable] = useState<SensorData | null>(null);
   const recordsRef = useRef(records);
   const navigation = useNavigation();
-  // Removed modal; using only inline banner for incomplete profile
 
   const isProfileComplete = () => {
     const ud: any = user?.userDetails as any;
@@ -80,7 +79,6 @@ export default function Monitoring() {
   const wave1 = useRef(new Animated.Value(0)).current;
   const wave2 = useRef(new Animated.Value(0)).current;
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       fetchTimer.current && clearInterval(fetchTimer.current);
@@ -90,21 +88,17 @@ export default function Monitoring() {
     };
   }, []);
 
-  // Re-evaluate and (re)start measurement when screen is focused
   useFocusEffect(
     useCallback(() => {
-      // Reset state on focus
       validStarted.current = false;
       setElapsed(0);
       setShowSummary(false);
 
-      // Stop any existing timers
       fetchTimer.current && clearInterval(fetchTimer.current);
       measureTimer.current && clearInterval(measureTimer.current);
 
       if (!isProfileComplete()) {
         setMeasuring(false);
-        // Do not use the generic warning; we'll show a single inline banner with action
         setWarning("");
         return () => {
           fetchTimer.current && clearInterval(fetchTimer.current);
@@ -114,10 +108,9 @@ export default function Monitoring() {
         };
       }
 
-      // Profile is complete – allow measuring
       setWarning("");
       setMeasuring(true);
-      setLoading(true); // show initial spinner until first valid sample
+      setLoading(true);
 
       fetchTimer.current = setInterval(() => {
         fetchData();
@@ -134,7 +127,6 @@ export default function Monitoring() {
 
   const fetchData = async () => {
     try {
-      // Guard: do not fetch/measure when profile is incomplete
       if (!isProfileComplete() || !measuring) {
         return;
       }
@@ -144,13 +136,12 @@ export default function Monitoring() {
       if (measuring) {
         if (data.bpm > 0) {
           setWarning("");
-          // Cache a stable sample so UI can show non-blinking values when not measuring
           setLastStable(data);
 
           if (!validStarted.current) {
             validStarted.current = true;
             animatePulse();
-            setLoading(false); // stop initial spinner when first valid data seen
+            setLoading(false);
 
             let seconds = 0;
             measureTimer.current = setInterval(() => {
@@ -172,10 +163,8 @@ export default function Monitoring() {
       }
     } catch (error) {
       console.error(error);
-      // Avoid clearing values when not measuring to prevent flicker
       if (measuring) setHealthData(null);
     } finally {
-      // do not toggle loading here; it's controlled by focus/first valid/stop
     }
   };
 
@@ -277,7 +266,6 @@ export default function Monitoring() {
     return "#5CB85C";
   };
 
-  // Friendly labels for summary section (avoid all-caps and long technical keys)
   const summaryLabelMap: Record<string, string> = useMemo(
     () => ({
       bpm: "Heart Rate",
@@ -289,7 +277,6 @@ export default function Monitoring() {
     []
   );
 
-  // Memoized icons (defined at top-level to keep hook order stable regardless of conditional rendering)
   const heartIcon = useMemo(() => (
     <FontAwesome5 name="heartbeat" size={48} color="#dc143c" />
   ), []);
@@ -311,7 +298,7 @@ export default function Monitoring() {
     title: string;
     message: string;
     severity: "info" | "warning" | "critical";
-    icon: string; // emoji for lightweight UI
+    icon: string;
   };
 
   const getAdvice = (): AdviceItem[] => {
@@ -482,50 +469,55 @@ export default function Monitoring() {
 
         {showSummary && (
           <>
-            {/* Session Trends becomes the primary section */}
-            {records.filter((r) => r.bpm > 0).length > 1 && (
-              <View style={styles.trendsSection}>
-                <Text style={styles.header}>Session Trends</Text>
-                {([
-                  { key: "bpm", label: "Heart Rate", unit: "bpm" },
-                  { key: "spo2", label: "SpO₂", unit: "%" },
-                  { key: "temperature", label: "Body Temp", unit: "°C" },
-                  { key: "humidity", label: "Humidity", unit: "%" },
-                  { key: "bodyTemperature", label: "Room Temp", unit: "°C" },
-                ] as Array<{ key: keyof SensorData; label: string; unit: string }>).map(({ key, label, unit }) => {
-                  const series = records
-                    .filter((r) => r.bpm > 0)
-                    .map((r) => Number(r[key] ?? 0))
-                    .slice(-70); // use ~70 samples to better fill width with wider bars
-                  if (series.length < 2) return null;
-                  const min = Math.min(...series);
-                  const max = Math.max(...series);
-                  const avgVal = series.reduce((s, v) => s + v, 0) / series.length;
-                  const range = Math.max(1, max - min);
-                  return (
-                    <View key={String(key)} style={styles.trendCard}>
-                      <View style={styles.trendHeaderRow}>
-                        <Text style={styles.trendLabel} numberOfLines={1} ellipsizeMode="tail">{label}</Text>
-                        <Text style={styles.trendStats}>{`${avgVal.toFixed(1)} ${unit}`}</Text>
-                      </View>
-                      <View style={styles.sparklineRow}>
-                        {series.map((v, i) => {
-                          const h = 8 + ((v - min) / range) * 40; // 8-48 px height (more compact vertically)
-                          return <View key={i} style={[styles.sparkBar, { height: h, backgroundColor: getBarColor(String(key), v) }]} />;
-                        })}
-                      </View>
-                      <View style={styles.trendFooterRow}>
-                        <Text style={styles.trendMinMax}>{`min ${min.toFixed(1)}${unit ? " " + unit : ""}`}</Text>
-                        <Text style={styles.trendMinMax}>{`max ${max.toFixed(1)}${unit ? " " + unit : ""}`}</Text>
-                      </View>
-                    </View>
-                  );
-                })}
+            {/* Measurement Summary with clean horizontal layout */}
+            <View style={styles.summarySection}>
+              <Text style={styles.header}>📊 Measurement Summary</Text>
+              <View style={styles.summaryCard}>
+                <VitalSummary
+                  icon={<FontAwesome5 name="heartbeat" size={24} color="#dc143c" />}
+                  label="Heart Rate"
+                  value={avg("bpm")}
+                  unit="bpm"
+                  color={getBarColor("bpm", avg("bpm"))}
+                  max={150}
+                />
+                <VitalSummary
+                  icon={<MaterialCommunityIcons name="lungs" size={24} color="#50E3C2" />}
+                  label="SpO₂"
+                  value={avg("spo2")}
+                  unit="%"
+                  color={getBarColor("spo2", avg("spo2"))}
+                  max={100}
+                />
+                <VitalSummary
+                  icon={<MaterialIcons name="thermostat" size={24} color="#F5A623" />}
+                  label="Body Temp"
+                  value={avg("temperature")}
+                  unit="°C"
+                  color={getBarColor("temperature", avg("temperature"))}
+                  max={40}
+                />
+                <VitalSummary
+                  icon={<MaterialCommunityIcons name="water-percent" size={24} color="#4A90E2" />}
+                  label="Humidity"
+                  value={avg("humidity")}
+                  unit="%"
+                  color={getBarColor("humidity", avg("humidity"))}
+                  max={100}
+                />
+                <VitalSummary
+                  icon={<MaterialIcons name="thermostat-auto" size={24} color="#9B59B6" />}
+                  label="Room Temp"
+                  value={avg("bodyTemperature")}
+                  unit="°C"
+                  color={getBarColor("bodyTemperature", avg("bodyTemperature"))}
+                  max={40}
+                />
               </View>
-            )}
+            </View>
 
             <View style={styles.advice}>
-              <Text style={styles.header}>💡 Advice</Text>
+              <Text style={styles.header}>💡 Health Advice</Text>
               {getAdvice().map((a) => (
                 <View key={`${a.key}-${a.title}`} style={[styles.adviceCard, a.severity === "critical" ? styles.adviceCritical : a.severity === "warning" ? styles.adviceWarning : styles.adviceInfo]}>
                   <View style={styles.adviceHeaderRow}>
@@ -539,6 +531,15 @@ export default function Monitoring() {
                 </View>
               ))}
             </View>
+
+            {/* Back to Home Button */}
+            <TouchableOpacity
+              style={styles.backToHomeButton}
+              onPress={() => navigation.navigate("MainTabs" as never)}
+            >
+              <MaterialIcons name="home" size={20} color="#fff" />
+              <Text style={styles.backToHomeButtonText}>Back to Home</Text>
+            </TouchableOpacity>
           </>
         )}
       </ScrollView>
@@ -595,6 +596,33 @@ const Vital = React.memo(({ icon, label, val, unit, loading }: any) => (
   </View>
 ));
 
+const VitalSummary = React.memo(({ icon, label, value, unit, color, max }: any) => {
+  const numValue = isNaN(value) ? 0 : Number(value);
+  const percentage = Math.min(100, Math.max(0, (numValue / max) * 100));
+  
+  return (
+    <View style={styles.vitalSummaryContainer}>
+      <View style={styles.vitalSummaryInfo}>
+        {icon}
+        <Text style={styles.vitalSummaryLabel}>{label}</Text>
+      </View>
+      <View style={styles.vitalSummaryValueBar}>
+        <Text style={[styles.vitalSummaryValue, { color }]}>
+          {isNaN(value) ? "--" : `${numValue.toFixed(1)} ${unit}`}
+        </Text>
+        <View style={styles.vitalProgressBarBackground}>
+          <View
+            style={[
+              styles.vitalProgressBar,
+              { width: `${percentage}%`, backgroundColor: color },
+            ]}
+          />
+        </View>
+      </View>
+    </View>
+  );
+});
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#1f1f3f" },
   content: {
@@ -631,40 +659,50 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   barVal: { width: 40, color: "#ddd", fontWeight: "600" },
-  trendsSection: { marginTop: 10 },
-  trendCard: {
-    backgroundColor: "#1f2233",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
+  summarySection: { marginTop: 10 },
+  summaryCard: {
+    backgroundColor: "rgba(57, 56, 81, 0.8)",
+    borderRadius: 15,
+    padding: 20,
     borderWidth: 1,
-    borderColor: "#2b2f45",
+    borderColor: "rgba(138, 132, 255, 0.5)",
   },
-  trendHeaderRow: {
+  vitalSummaryContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: 20,
   },
-  trendLabel: { flex: 1, color: "#ddd", fontSize: 16, fontWeight: "700" },
-  trendStats: { color: "#cfd4ff", fontSize: 14, fontWeight: "600" },
-  sparklineRow: {
+  vitalSummaryInfo: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    height: 56,
-    marginTop: 4,
-    marginBottom: 6,
+    alignItems: "center",
+    width: "35%",
   },
-  sparkBar: {
-    width: 6,
-    borderRadius: 3,
-    marginRight: 2,
-    backgroundColor: "#5CB85C",
+  vitalSummaryLabel: {
+    fontSize: 14,
+    color: "#E0E0E0",
+    marginLeft: 10,
   },
-  trendFooterRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  vitalSummaryValueBar: {
+    flex: 1,
+    marginLeft: 20,
   },
-  trendMinMax: { color: "#9aa3c7", fontSize: 12 },
+  vitalSummaryValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    alignSelf: "flex-start",
+    marginBottom: 5,
+  },
+  vitalProgressBarBackground: {
+    height: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 4,
+    marginTop: 5,
+    overflow: "hidden",
+  },
+  vitalProgressBar: {
+    height: 8,
+    borderRadius: 4,
+  },
   advice: {
     marginTop: 40,
     paddingHorizontal: 5,
@@ -752,5 +790,27 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: "#fff",
     fontWeight: "bold",
+  },
+  backToHomeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ff0051",
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginTop: 30,
+    marginBottom: 20,
+    shadowColor: "#ff0051",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  backToHomeButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    marginLeft: 8,
   },
 });

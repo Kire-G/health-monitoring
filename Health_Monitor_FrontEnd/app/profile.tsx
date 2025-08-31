@@ -51,7 +51,6 @@ const Profile = () => {
   const dropdownAnim = useRef(new Animated.Value(0)).current;
 
 
-  // Doctor details state
   const [doctorDetails, setDoctorDetails] = useState<DoctorDetails>({
     doctorName: user?.doctorDetails?.doctorName || '',
     doctorEmail: user?.doctorDetails?.doctorEmail || '',
@@ -110,8 +109,6 @@ const Profile = () => {
           ...response.data.doctorDetails,
         },
       }));
-      // This is the key fix: we directly update the local state with the new data from the response.
-      // This ensures the UI refreshes instantly and correctly, avoiding any race conditions.
       if (response.data.doctorDetails) {
         setDoctorDetails(response.data.doctorDetails);
       }

@@ -30,14 +30,10 @@ public class EmailService {
             MimeMessage mimeMessage = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
-            // Set the 'from' address to appear as the user, but it's sent via the official app email
             helper.setFrom(new InternetAddress(officialFromEmail, fromName));
-            // Set the recipient (the doctor)
             helper.setTo(to);
-            // Set the subject and body
             helper.setSubject(subject);
-            helper.setText(body, false); // false indicates plain text
-            // Set the 'reply-to' to be the user's actual email address
+            helper.setText(body, false); 
             helper.setReplyTo(from);
 
             mailSender.send(mimeMessage);

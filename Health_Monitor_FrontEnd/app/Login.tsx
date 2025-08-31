@@ -38,7 +38,6 @@ const Login = () => {
       }
     } catch (error) {
       console.error("Login failed:", error);
-      // handle error (e.g., show error message)
     }
   };
 

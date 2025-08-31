@@ -4,4 +4,4 @@
 // 2. Replace the placeholder IP with your actual IP address.
 //    - Example: 'http://192.168.1.10:8080'
 
-export const API_BASE_URL = "http://192.168.0.109:8080";
+export const API_BASE_URL = "http://192.168.0.106:8080";

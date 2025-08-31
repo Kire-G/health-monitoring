@@ -19,7 +19,6 @@ import { USER_MEASUREMENTS } from "@/config/axiosConfig";
 import HealthData from "@/constants/HealthData";
 import { NavigationProp, useNavigation, useFocusEffect } from "@react-navigation/native";
 
-// Define types for workout and recipe for clarity
 interface Workout {
   id: string;
   name: string;
@@ -36,7 +35,6 @@ interface Recipe {
   image: string | null;
 }
 
-// Helper function to get an icon for a given muscle group
 const getWorkoutIcon = (muscle: string) => {
   switch (muscle.toLowerCase()) {
     case "biceps":
@@ -81,21 +79,14 @@ const Personalized = () => {
 
   const getWorkoutIcon = (target: string) => {
     const muscle = target.toLowerCase();
-    // Cardio
     if (muscle.includes('cardio')) return 'heartbeat';
-    // Legs
     if (['quads', 'glutes', 'legs', 'calves', 'hamstrings', 'abductors', 'adductors'].some(m => muscle.includes(m))) return 'running';
-    // Arms
     if (['biceps', 'triceps', 'arms', 'forearms'].some(m => muscle.includes(m))) return 'dumbbell';
-    // Back & Shoulders
     if (['lats', 'back', 'shoulders', 'delts', 'traps'].some(m => muscle.includes(m))) return 'weight-hanging';
-    // Chest & Core
     if (['abs', 'pectorals', 'chest', 'waist', 'spine'].some(m => muscle.includes(m))) return 'fire';
-    // Default
     return 'running';
   };
 
-  // Fetch health data
   const getMeasurements = useCallback(async () => {
     if (!user?.email) {
       setLastMeasurement(null);
@@ -127,14 +118,12 @@ const Personalized = () => {
     getMeasurements();
   }, [getMeasurements]);
 
-  // Re-fetch on screen focus
   useFocusEffect(
     useCallback(() => {
       getMeasurements();
     }, [getMeasurements])
   );
 
-  // Fetch recipes from TheMealDB API
   useEffect(() => {
     const getRecipes = async () => {
       if (!lastMeasurement) return;
@@ -171,7 +160,6 @@ const Personalized = () => {
             meals = [...meals, ...recipes];
           }
         });
-        // Limit to 5 recipes
         setRecommendedRecipes(meals.slice(0, 5));
       } catch (error) {
         console.error("Error fetching recipes:", error);
@@ -183,7 +171,6 @@ const Personalized = () => {
     getRecipes();
   }, [lastMeasurement]);
 
-  // Fetch workouts
   useEffect(() => {
     const getWorkouts = async () => {
       if (!user || !lastMeasurement) return;
@@ -191,7 +178,7 @@ const Personalized = () => {
       setLoadingWorkouts(true);
       try {
         const params = {
-          age: user.age || 30, // Default age if not set
+          age: user.age || 30,
           gender: user.userDetails?.gender || 'Male',
           heartRate: lastMeasurement.heartRate,
         };
@@ -200,7 +187,6 @@ const Personalized = () => {
           `/api/workouts/recommendations`,
           { params }
         );
-        // Limit to 5 workouts
         setRecommendedWorkouts((response.data || []).slice(0, 5));
       } catch (error) {
         console.error("Error fetching workouts:", error);
@@ -483,7 +469,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     elevation: 5,
     maxHeight: "95%",
-    minHeight: "80%", // Ensure a minimum height
+    minHeight: "80%",
     borderColor: "#8A84FF",
     borderWidth: 1,
     flexDirection: 'column',
@@ -512,7 +498,7 @@ const styles = StyleSheet.create({
     textTransform: "capitalize",
   },
   instructionsScrollView: {
-    flex: 1, // Allow this to grow
+    flex: 1,
     width: '100%',
     marginVertical: 15,
   },

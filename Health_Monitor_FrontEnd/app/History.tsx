@@ -17,7 +17,6 @@ import {
 } from "react-native";
 import { NavigationProp, useNavigation, useFocusEffect } from "@react-navigation/native";
 
-// A new component to render each health metric with a progress bar
 const HealthMetric = ({ icon, label, value, unit, color, max }) => {
   const percentage = Math.min(100, (parseFloat(value) / max) * 100);
   return (
@@ -57,11 +56,18 @@ function History() {
     "success"
   );
 
+  const isDoctorDetailsComplete = () => {
+    return Boolean(
+      user?.doctorDetails?.doctorEmail?.trim() &&
+      user?.doctorDetails?.doctorName?.trim()
+    );
+  };
+
   const handleSendEmail = async (report: HealthData) => {
-    if (!user?.doctorDetails?.doctorEmail) {
+    if (!isDoctorDetailsComplete()) {
       Alert.alert(
-        "No Doctor Email",
-        "Please add your doctor's email in the profile section first."
+        "Doctor Details Incomplete",
+        "Please add your doctor's name and email in the profile section first."
       );
       return;
     }
@@ -109,7 +115,6 @@ ${user.name}
   const [healthData, setHealthData] = useState<HealthData[]>([]);
 
   const getMeasurementsHistoryByUserEmail = async () => {
-    // Avoid calling the API if the user is logged out or email is missing
     if (!user?.email) {
       setHealthData([]);
       return;
@@ -141,7 +146,6 @@ ${user.name}
     getMeasurementsHistoryByUserEmail();
   }, [user]);
 
-  // Re-fetch on screen focus so History updates after first measurement
   useFocusEffect(
     useCallback(() => {
       getMeasurementsHistoryByUserEmail();
@@ -155,6 +159,22 @@ ${user.name}
     >
       <ScrollView>
         <Text style={styles.sectionTitle}>Measurement History</Text>
+        
+        {/* Doctor details incomplete banner */}
+        {!isDoctorDetailsComplete() && (
+          <View style={styles.warningBanner}>
+            <Text style={styles.warningText}>
+              ⚠️ Doctor details incomplete. Please add your doctor's information to send health reports.
+            </Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("profile" as never)}
+              style={styles.warningButton}
+            >
+              <Text style={styles.warningButtonText}>Go to Profile</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {(!healthData || healthData.length === 0) ? (
           <View style={styles.emptyStateContainer}>
             <MaterialCommunityIcons name="chart-line" size={56} color="#8A84FF" />
@@ -252,11 +272,24 @@ ${user.name}
               />
             </View>
             <TouchableOpacity
-              style={styles.sendButton}
+              style={[
+                styles.sendButton,
+                !isDoctorDetailsComplete() && styles.sendButtonDisabled
+              ]}
               onPress={() => handleSendEmail(data)}
+              disabled={!isDoctorDetailsComplete()}
             >
-              <Ionicons name="send-outline" size={18} color="#fff" />
-              <Text style={styles.sendButtonText}>Send to my doctor</Text>
+              <Ionicons 
+                name="send-outline" 
+                size={18} 
+                color={!isDoctorDetailsComplete() ? "#666" : "#fff"} 
+              />
+              <Text style={[
+                styles.sendButtonText,
+                !isDoctorDetailsComplete() && styles.sendButtonTextDisabled
+              ]}>
+                Send to my doctor
+              </Text>
             </TouchableOpacity>
           </View>
         ))}
@@ -481,5 +514,37 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  warningBanner: {
+    backgroundColor: 'rgba(255, 165, 0, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 165, 0, 0.3)',
+  },
+  warningText: {
+    color: '#F5A623',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  warningButton: {
+    alignSelf: 'center',
+    backgroundColor: '#ff0051',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  warningButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#333',
+    opacity: 0.6,
+  },
+  sendButtonTextDisabled: {
+    color: '#666',
   },
 });

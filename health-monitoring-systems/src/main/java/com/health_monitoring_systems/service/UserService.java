@@ -1,6 +1,7 @@
 package com.health_monitoring_systems.service;
 
 import com.health_monitoring_systems.exception.UserNotFoundException;
+import com.health_monitoring_systems.model.DoctorDetails;
 import com.health_monitoring_systems.model.User;
 import com.health_monitoring_systems.model.UserDetails;
 
@@ -43,7 +44,7 @@ public class UserService {
             return getUserById(user.getId());
         } catch (Exception e) {
             logger.error("Login failed for email: {}. Root cause: ", email, e);
-            throw e; // Re-throw the exception to be handled by the global exception handler
+            throw e;
         }
     }
 
@@ -73,9 +74,9 @@ public class UserService {
 
         }
 
-        // Handle updating doctor details
         if (userDetails.getDoctorDetails() != null) {
-            doctorDetailsService.updateDoctorDetails(id, userDetails.getDoctorDetails());
+            DoctorDetails updatedDoctorDetails = doctorDetailsService.updateDoctorDetails(id, userDetails.getDoctorDetails());
+            user.setDoctorDetails(updatedDoctorDetails);
         }
 
         return userRepository.save(user);
