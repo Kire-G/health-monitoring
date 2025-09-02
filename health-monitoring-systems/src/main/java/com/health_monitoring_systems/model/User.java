@@ -30,7 +30,8 @@ public class User {
     @JsonManagedReference("user-details")
     private UserDetails userDetails;
 
-    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference("user-doctor-details")
-    private DoctorDetails doctorDetails;
+    // Many users can reference the same doctor
+    @ManyToOne
+    @JoinColumn(name = "doctor_id")
+    private DoctorDetails doctor;
 }

@@ -19,7 +19,7 @@ public class DoctorDetailsController {
 
     @PutMapping
     public ResponseEntity<DoctorDetails> updateDoctorDetails(@PathVariable Long userId, @RequestBody DoctorDetails doctorDetails) {
-        DoctorDetails updatedDoctorDetails = doctorDetailsService.updateDoctorDetails(userId, doctorDetails);
+        DoctorDetails updatedDoctorDetails = doctorDetailsService.assignDoctorToUser(userId, doctorDetails);
         return ResponseEntity.ok(updatedDoctorDetails);
     }
 }

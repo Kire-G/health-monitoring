@@ -19,31 +19,64 @@ public class DoctorDetailsService {
         this.userRepository = userRepository;
     }
 
-    public DoctorDetails updateDoctorDetails(Long userId, DoctorDetails doctorDetails) {
+    public DoctorDetails assignDoctorToUser(Long userId, DoctorDetails doctorPayload) {
         User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
-        DoctorDetails existingDoctorDetails = user.getDoctorDetails();
-        
-        if (doctorDetails != null && 
-            (doctorDetails.getDoctorName() == null || doctorDetails.getDoctorName().trim().isEmpty()) &&
-            (doctorDetails.getDoctorEmail() == null || doctorDetails.getDoctorEmail().trim().isEmpty()) &&
-            (doctorDetails.getDoctorPhone() == null || doctorDetails.getDoctorPhone().trim().isEmpty())) {
-            
-            if (existingDoctorDetails != null) {
-                user.setDoctorDetails(null);
-                doctorDetailsRepository.delete(existingDoctorDetails);
-            }
+
+        // If payload is empty, unassign doctor
+        boolean emptyPayload = doctorPayload == null || (
+                (doctorPayload.getDoctorName() == null || doctorPayload.getDoctorName().trim().isEmpty()) &&
+                (doctorPayload.getDoctorEmail() == null || doctorPayload.getDoctorEmail().trim().isEmpty()) &&
+                (doctorPayload.getDoctorPhone() == null || doctorPayload.getDoctorPhone().trim().isEmpty())
+        );
+        if (emptyPayload) {
+            user.setDoctor(null);
+            userRepository.save(user);
             return null;
         }
-        
-        if (existingDoctorDetails == null) {
-            existingDoctorDetails = new DoctorDetails();
-            existingDoctorDetails.setUser(user);
-            user.setDoctorDetails(existingDoctorDetails);
+
+        String email = doctorPayload.getDoctorEmail();
+        if (email == null || email.trim().isEmpty()) {
+            throw new RuntimeException("Doctor email is required");
         }
+
+        DoctorDetails existingDoctor = doctorDetailsRepository.findByDoctorEmail(email).orElse(null);
         
-        existingDoctorDetails.setDoctorName(doctorDetails.getDoctorName());
-        existingDoctorDetails.setDoctorEmail(doctorDetails.getDoctorEmail());
-        existingDoctorDetails.setDoctorPhone(doctorDetails.getDoctorPhone());
-        return doctorDetailsRepository.save(existingDoctorDetails);
+        if (existingDoctor != null) {
+            // Doctor exists - validate that provided information matches database
+            validateDoctorInformation(existingDoctor, doctorPayload);
+            user.setDoctor(existingDoctor);
+            userRepository.save(user);
+            return existingDoctor;
+        } else {
+            // Doctor doesn't exist - create new one
+            DoctorDetails newDoctor = new DoctorDetails();
+            newDoctor.setDoctorName(doctorPayload.getDoctorName());
+            newDoctor.setDoctorEmail(doctorPayload.getDoctorEmail());
+            newDoctor.setDoctorPhone(doctorPayload.getDoctorPhone());
+            newDoctor = doctorDetailsRepository.save(newDoctor);
+
+            user.setDoctor(newDoctor);
+            userRepository.save(user);
+            return newDoctor;
+        }
+    }
+
+    private void validateDoctorInformation(DoctorDetails existingDoctor, DoctorDetails providedDoctor) {
+        // Check if name matches (if provided)
+        if (providedDoctor.getDoctorName() != null && !providedDoctor.getDoctorName().trim().isEmpty()) {
+            if (!existingDoctor.getDoctorName().equals(providedDoctor.getDoctorName())) {
+                throw new RuntimeException("Doctor name does not match database records. Expected: " + 
+                    existingDoctor.getDoctorName() + ", but got: " + providedDoctor.getDoctorName());
+            }
+        }
+
+        // Check if phone matches (if provided)
+        if (providedDoctor.getDoctorPhone() != null && !providedDoctor.getDoctorPhone().trim().isEmpty()) {
+            if (existingDoctor.getDoctorPhone() != null && 
+                !existingDoctor.getDoctorPhone().equals(providedDoctor.getDoctorPhone())) {
+                throw new RuntimeException("Doctor phone does not match database records. Expected: " + 
+                    existingDoctor.getDoctorPhone() + ", but got: " + providedDoctor.getDoctorPhone());
+            }
+        }
     }
 }

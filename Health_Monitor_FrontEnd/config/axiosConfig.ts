@@ -1,8 +1,10 @@
 import axios from "axios";
 import { API_BASE_URL } from "@/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const USER_MEASUREMENTS = `${API_BASE_URL}/measurements`;
 export const USER = `${API_BASE_URL}/user`;
+export const AUTH = `${API_BASE_URL}/api/auth`;
 export const baseURL = API_BASE_URL;
 
 // Create an Axios instance
@@ -13,8 +15,21 @@ const axiosInstance = axios.create({
 
 axiosInstance.interceptors.request.use(
   (config) => {
-    const token = "";
-    return config;
+    // Attach JWT token if present
+    return (async () => {
+      try {
+        const token = await AsyncStorage.getItem("auth_token");
+        if (token) {
+          // Initialize headers object if undefined and set Authorization header
+          const headers: any = config.headers ?? {};
+          headers["Authorization"] = `Bearer ${token}`;
+          config.headers = headers;
+        }
+      } catch (e) {
+        // ignore token retrieval errors
+      }
+      return config;
+    })();
   },
   (error) => {
     return Promise.reject(error);

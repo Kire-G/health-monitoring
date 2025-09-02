@@ -1,9 +1,11 @@
 package com.health_monitoring_systems.model;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Getter
@@ -18,8 +20,8 @@ public class DoctorDetails {
     private String doctorEmail;
     private String doctorPhone;
 
-    @OneToOne
-    @JoinColumn(name = "user_id")
-    @JsonBackReference("user-doctor-details")
-    private User user;
+    // Optional: One doctor can have many users (patients)
+    @OneToMany(mappedBy = "doctor")
+    @JsonIgnore
+    private List<User> patients = new ArrayList<>();
 }

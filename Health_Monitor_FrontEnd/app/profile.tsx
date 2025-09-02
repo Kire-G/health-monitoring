@@ -52,9 +52,9 @@ const Profile = () => {
 
 
   const [doctorDetails, setDoctorDetails] = useState<DoctorDetails>({
-    doctorName: user?.doctorDetails?.doctorName || '',
-    doctorEmail: user?.doctorDetails?.doctorEmail || '',
-    doctorPhone: user?.doctorDetails?.doctorPhone || '',
+    doctorName: user?.doctor?.doctorName || '',
+    doctorEmail: user?.doctor?.doctorEmail || '',
+    doctorPhone: user?.doctor?.doctorPhone || '',
   });
   const [doctorModalVisible, setDoctorModalVisible] = useState(false);
 
@@ -68,9 +68,9 @@ const Profile = () => {
       setWeight(user.userDetails?.weight?.toString());
 
       setDoctorDetails({
-        doctorName: user?.doctorDetails?.doctorName || '',
-        doctorEmail: user?.doctorDetails?.doctorEmail || '',
-        doctorPhone: user?.doctorDetails?.doctorPhone || '',
+        doctorName: user?.doctor?.doctorName || '',
+        doctorEmail: user?.doctor?.doctorEmail || '',
+        doctorPhone: user?.doctor?.doctorPhone || '',
       });
     }
   }, [user]);
@@ -94,7 +94,7 @@ const Profile = () => {
           gender,
 
         },
-        doctorDetails: doctorDetails,
+        doctor: doctorDetails,
       };
       const response = await axios.put(`${USER}/${user.id}`, updatedDetails);
       setUser(prevUser => ({
@@ -104,21 +104,22 @@ const Profile = () => {
           ...prevUser?.userDetails,
           ...response.data.userDetails,
         },
-        doctorDetails: {
-          ...prevUser?.doctorDetails,
-          ...response.data.doctorDetails,
+        doctor: {
+          ...prevUser?.doctor,
+          ...response.data.doctor,
         },
       }));
-      if (response.data.doctorDetails) {
-        setDoctorDetails(response.data.doctorDetails);
+      if (response.data.doctor) {
+        setDoctorDetails(response.data.doctor);
       }
 
       Alert.alert("Success", "Profile updated successfully!");
       setModalVisible(false);
       setDoctorModalVisible(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update profile:", error);
-      Alert.alert("Error", "Failed to update profile. Please try again.");
+      const errorMessage = error?.response?.data?.message || error?.message || "Failed to update profile. Please try again.";
+      Alert.alert("Error", errorMessage);
     }
   };
 

@@ -9,6 +9,7 @@ import com.health_monitoring_systems.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 
@@ -17,11 +18,13 @@ public class UserService {
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
     private final DoctorDetailsService doctorDetailsService;
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Autowired
-    public UserService(UserRepository userRepository, DoctorDetailsService doctorDetailsService) {
+    public UserService(UserRepository userRepository, DoctorDetailsService doctorDetailsService, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.doctorDetailsService = doctorDetailsService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public User getUserById(Long id) {
@@ -38,7 +41,7 @@ public class UserService {
     public User login (String email, String password){
         try {
             User user = userRepository.findByEmail(email).orElseThrow(() -> new IllegalArgumentException("User with email: " + email + " not found!"));
-            if(!user.getPassword().equals(password)) {
+            if(!passwordEncoder.matches(password, user.getPassword())) {
                 throw new IllegalArgumentException("Wrong credentials");
             }
             return getUserById(user.getId());
@@ -49,6 +52,8 @@ public class UserService {
     }
 
     public void saveUser(User user){
+        // Hash password before saving for security
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
         userRepository.save(user);
     }
 
@@ -71,15 +76,19 @@ public class UserService {
             existingDetails.setHeight(newDetails.getHeight());
             existingDetails.setWeight(newDetails.getWeight());
             existingDetails.setGender(newDetails.getGender());
-
         }
 
-        if (userDetails.getDoctorDetails() != null) {
-            DoctorDetails updatedDoctorDetails = doctorDetailsService.updateDoctorDetails(id, userDetails.getDoctorDetails());
-            user.setDoctorDetails(updatedDoctorDetails);
+        // Save user first
+        User savedUser = userRepository.save(user);
+
+        // Handle doctor assignment if doctor details are provided
+        if (userDetails.getDoctor() != null) {
+            doctorDetailsService.assignDoctorToUser(id, userDetails.getDoctor());
+            // Fetch updated user with doctor information
+            savedUser = userRepository.findById(id).orElse(savedUser);
         }
 
-        return userRepository.save(user);
+        return savedUser;
     }
 
 

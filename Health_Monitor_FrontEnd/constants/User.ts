@@ -11,7 +11,8 @@ export default interface User {
   age?: number;
   online?: boolean;
   userDetails?: UserDetails;
-  doctorDetails?: DoctorDetails;
+  doctor?: DoctorDetails;
+  doctorDetails?: DoctorDetails; // Keep for backward compatibility
   gender?: string;
   height?: number;
   weight?: number;

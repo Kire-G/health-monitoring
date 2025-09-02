@@ -8,9 +8,9 @@ import {
   StyleSheet,
   Alert,
 } from "react-native";
-import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAppContext } from "@/context/AppContext";
-import { USER } from "@/config/axiosConfig";
+import axiosInstance, { AUTH, USER } from "@/config/axiosConfig";
 const Login = () => {
   const navigation = useNavigation<any>();
   const [loginInfo, setLoginInfo] = useState({ email: "", password: "" });
@@ -26,18 +26,33 @@ const Login = () => {
 
   const handleSubmit = async () => {
     try {
-      const response = await axios.get(`${USER}/`, {
-        params: { email: loginInfo.email, password: loginInfo.password },
+      // Authenticate and obtain JWT token
+      const { data } = await axiosInstance.post(`${AUTH}/login`, {
+        email: loginInfo.email,
+        password: loginInfo.password,
       });
 
-      if (response.data) {
-        setUser(response.data);
+      if (data?.token) {
+        await AsyncStorage.setItem("auth_token", data.token);
+        await AsyncStorage.setItem("user_email", loginInfo.email);
+        
+        // Fetch user profile data using email
+        try {
+          const userResponse = await axiosInstance.get(`${USER}/?email=${loginInfo.email}&password=${loginInfo.password}`);
+          if (userResponse.data) {
+            setUser(userResponse.data);
+          }
+        } catch (userError) {
+          console.error("Failed to fetch user profile:", userError);
+        }
+        
         navigation.navigate("MainTabs");
       } else {
-        Alert.alert("Login Failed", "Invalid email or password.");
+        Alert.alert("Login Failed", "Invalid response from server.");
       }
     } catch (error) {
       console.error("Login failed:", error);
+      Alert.alert("Login Failed", "Invalid email or password.");
     }
   };
 
